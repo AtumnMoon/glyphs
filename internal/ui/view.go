@@ -17,32 +17,41 @@ func (m model) View() tea.View {
 
 	// Split the main window into content window and help window
 	windowHeight := m.height * 90 / 100
-	helpViewHeight := m.height - windowHeight
 
-	// Define the main content panel
-	windowStyle := lipgloss.NewStyle().
-		Width(m.width).
-		Height(windowHeight).
+	helpViewHeight := m.height - windowHeight
+	helpViewWidth := m.width
+
+	// Calculate tab and tab content window size
+	tabHeight := 1 // N characters only
+	tabWidth := m.width / 3
+
+	tabContentHeight := windowHeight - tabHeight
+	tabContentWidth := m.width
+
+	// Define the tab's active and inactive style
+	tabStyle := lipgloss.NewStyle().
+		Height(tabHeight).
+		Width(tabWidth).
+		Padding(0, 1).
 		AlignHorizontal(lipgloss.Center).
 		AlignVertical(lipgloss.Center)
 
-	// Define the tab's active and inactive style
-	activeStyle := lipgloss.NewStyle().
+	activeStyle := tabStyle.
 		Foreground(lipgloss.Color("#FFF")).
 		Background(lipgloss.Color("#7D56F4")).
 		Bold(true)
 
-	inactiveStyle := lipgloss.NewStyle().
+	inactiveStyle := tabStyle.
 		Foreground(lipgloss.Color("#AAA")).
 		Background(lipgloss.Color("#333"))
 
 	// Render the tab bar row
 	var renderedTabs []string
-	for i, t := range m.tabs {
-		if i == m.activeTab {
-			renderedTabs = append(renderedTabs, activeStyle.Render(t))
+	for index, tab := range m.tabs {
+		if index == m.activeTab {
+			renderedTabs = append(renderedTabs, activeStyle.Render(tab))
 		} else {
-			renderedTabs = append(renderedTabs, inactiveStyle.Render(t))
+			renderedTabs = append(renderedTabs, inactiveStyle.Render(tab))
 		}
 	}
 	tabRow := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
@@ -59,6 +68,8 @@ func (m model) View() tea.View {
 	}
 
 	contentStyle := lipgloss.NewStyle().
+		Height(tabContentHeight).
+		Width(tabContentWidth).
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
 		Padding(1, 2).
@@ -67,8 +78,7 @@ func (m model) View() tea.View {
 	contentBox := contentStyle.Render(content)
 
 	// Combine components vertically
-	windowContent := lipgloss.JoinVertical(lipgloss.Left, tabRow, contentBox)
-	window := windowStyle.Render(windowContent)
+	window := lipgloss.JoinVertical(lipgloss.Left, tabRow, contentBox)
 
 	// Define the help panel
 	helpStyle := lipgloss.NewStyle().
