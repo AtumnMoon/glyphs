@@ -15,18 +15,16 @@ func (m model) View() tea.View {
 		return v
 	}
 
-	// Split the main window into content window and help window
-	windowHeight := m.height * 90 / 100
+	helpContent := m.help.View(m.keys)
+	helpViewHeight := lipgloss.Height(helpContent)
 
-	helpViewHeight := m.height - windowHeight
-	helpViewWidth := m.width
+	windowHeight := m.height - helpViewHeight
 
 	// Calculate tab and tab content window size
 	tabHeight := 1 // N characters only
 	tabWidth := m.width / 3
 
-	tabContentHeight := windowHeight - tabHeight
-	tabContentWidth := m.width
+	tabContentHeight := max(windowHeight-tabHeight, 1)
 
 	// Define the tab's active and inactive style
 	tabStyle := lipgloss.NewStyle().
@@ -60,38 +58,32 @@ func (m model) View() tea.View {
 	var content string
 	switch m.activeTab {
 	case 0:
-		content = "Kaomoji picker running..."
+		content = kaomojiUI()
 	case 1:
-		content = "Emoji picker running..."
+		content = emojiUI()
 	case 2:
-		content = "Clipboard running..."
+		content = clipboardUI()
 	}
 
 	contentStyle := lipgloss.NewStyle().
 		Height(tabContentHeight).
-		Width(tabContentWidth).
+		Width(lipgloss.Width(tabRow)).
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")).
-		Padding(1, 2).
-		Width(lipgloss.Width(tabRow))
+		BorderForeground(lipgloss.Color("#7D56F4"))
 
 	contentBox := contentStyle.Render(content)
 
 	// Combine components vertically
-	window := lipgloss.JoinVertical(lipgloss.Left, tabRow, contentBox)
+	window := lipgloss.JoinVertical(lipgloss.Center, tabRow, contentBox)
 
 	// Define the help panel
 	helpStyle := lipgloss.NewStyle().
 		Width(m.width).
-		Height(helpViewHeight).
-		AlignHorizontal(lipgloss.Center).
-		AlignVertical(lipgloss.Bottom).
-		PaddingBottom(1)
+		AlignHorizontal(lipgloss.Center)
 
-	helpContent := m.help.View(m.keys)
 	help := helpStyle.Render(helpContent)
 
-	full := lipgloss.JoinVertical(lipgloss.Left, window, help)
+	full := lipgloss.JoinVertical(lipgloss.Center, window, help)
 
 	v.Content = full
 	return v

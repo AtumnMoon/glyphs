@@ -1,10 +1,10 @@
 package main
 
 import (
-	"glyphs/internal/app"
+	"glyphs/internal/cmd"
 	"os"
 )
 
 func main() {
-	os.Exit(app.Main())
+	os.Exit(cmd.Main())
 }
