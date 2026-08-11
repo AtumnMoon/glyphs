@@ -1,7 +1,7 @@
 package main
 
 import (
-	"glyphs/internal/cmd"
+	"github.com/AtumnMoon/glyphs/internal/cmd"
 	"os"
 )
 
