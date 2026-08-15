@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"golang.design/x/clipboard"
+	gclip "golang.design/x/clipboard"
 )
 
 // ClipboardEntry mirrors a single clipboard_history.json record.
@@ -295,14 +295,14 @@ func sanitizeText(s string) string {
 // Listen blocks, watching the system clipboard and recording every text/image
 // change into the store until ctx is done (pass context.Background() to run
 // forever). It's meant to be run the same way clipse runs `clipse -listen`.
-func (s *HistoryStore) Listen(watch <-chan clipboard.Data) {
+func (s *HistoryStore) Listen(watch <-chan gclip.Data) {
 	for data := range watch {
 		switch data.Format {
-		case clipboard.FmtText:
+		case gclip.FmtText:
 			if _, err := s.AddText(string(data.Bytes)); err != nil {
 				fmt.Fprintln(os.Stderr, "clipboardhistory: add text:", err)
 			}
-		case clipboard.FmtImage:
+		case gclip.FmtImage:
 			if _, err := s.AddImage(data.Bytes); err != nil {
 				fmt.Fprintln(os.Stderr, "clipboardhistory: add image:", err)
 			}
