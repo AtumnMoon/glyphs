@@ -1,4 +1,4 @@
-module glyphs
+module github.com/AtumnMoon/glyphs
 
 go 1.26.4
 
