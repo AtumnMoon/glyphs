@@ -200,7 +200,7 @@ func (m *model) viewBrowser(b *browser) []string {
 			break
 		}
 		var sb strings.Builder
-		for c := 0; c < cols; c++ {
+		for c := range cols {
 			idx := row*cols + c
 			if idx >= len(b.shown) {
 				break
@@ -231,7 +231,7 @@ func (m *model) viewBrowser(b *browser) []string {
 func (m *model) joinPanes(left, right []string, lw, rw, h int) []string {
 	div := m.st.divider.Render(" │ ")
 	out := make([]string, 0, h)
-	for i := 0; i < h; i++ {
+	for i := range h {
 		l, r := strings.Repeat(" ", lw), ""
 		if i < len(left) {
 			l = padTo(left[i], lw)

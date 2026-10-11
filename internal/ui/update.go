@@ -34,11 +34,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.confirm == nil {
 			switch msg.Mouse().Button {
 			case tea.MouseWheelUp:
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					m.navigate("up")
 				}
 			case tea.MouseWheelDown:
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					m.navigate("down")
 				}
 			}
