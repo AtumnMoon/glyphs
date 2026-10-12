@@ -1,0 +1,44 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: glyphs-build
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+archives:
+  - id: raw-binaries
+    builds:
+      - glyphs-build
+    format: binary
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ .Ext }}"
+
+  - id: compressed-archives
+    builds:
+      - glyphs-build
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+release:
+  github:
+    owner: AtumnMoon
+    name: glyphs
+  prerelease: auto
