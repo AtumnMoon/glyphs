@@ -80,7 +80,7 @@ func DefaultKeyBindings() map[string]string {
 		"preview":       "space",
 		"togglePin":     "p",
 		"togglePinned":  "ctrl+p",
-		"remove":        "backspace,delete",
+		"remove":        "x,backspace,delete",
 		"selectSingle":  "s",
 		"selectUp":      "shift+up",
 		"selectDown":    "shift+down",
@@ -232,7 +232,7 @@ func (c Config) Keys(action string) []string {
 		raw = DefaultKeyBindings()[action]
 	}
 	var out []string
-	for _, k := range strings.Split(raw, ",") {
+	for k := range strings.SplitSeq(raw, ",") {
 		if k = strings.TrimSpace(k); k != "" {
 			out = append(out, k)
 		}
