@@ -94,8 +94,14 @@ go install github.com/AtumnMoon/glyphs@latest
 ## Development
 
 ```
-go build ./... && go test -race ./...
+go build ./...
+go test ./...
 ```
+
+`go test ./...` prints `?   <pkg>  [no test files]` for packages that have no
+tests (currently only `main`). That line is informational, not a failure.
+`go test -race ./...` additionally needs cgo (a C compiler); everything else is
+pure Go, so `CGO_ENABLED=0` builds and tests work on all platforms.
 
 ## License
 

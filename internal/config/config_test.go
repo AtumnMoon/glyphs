@@ -65,17 +65,21 @@ func TestBrokenConfigFallsBackToDefaults(t *testing.T) {
 }
 
 func TestResolvePath(t *testing.T) {
-	t.Setenv("GLYPHS_TEST_DIR", "/opt/x")
+	// Built from t.TempDir() so the expectations hold on Windows too, where
+	// "/abs" is not an absolute path (no drive letter).
+	base := t.TempDir()
+	abs := filepath.Join(t.TempDir(), "abs", "hist.json")
+	t.Setenv("GLYPHS_TEST_DIR", filepath.Dir(abs))
 	home, _ := os.UserHomeDir()
 	cases := map[string]string{
-		"hist.json":          filepath.Join("/base", "hist.json"),
-		"/abs/hist.json":     filepath.Clean("/abs/hist.json"),
-		"$GLYPHS_TEST_DIR/h": filepath.Clean("/opt/x/h"),
-		"~/glyphs/h.json":    filepath.Join(home, "glyphs/h.json"),
-		"sub/../hist.json":   filepath.Join("/base", "hist.json"),
+		"hist.json":          filepath.Join(base, "hist.json"),
+		abs:                  abs,
+		"$GLYPHS_TEST_DIR/h": filepath.Join(filepath.Dir(abs), "h"),
+		"~/glyphs/h.json":    filepath.Join(home, "glyphs", "h.json"),
+		"sub/../hist.json":   filepath.Join(base, "hist.json"),
 	}
 	for in, want := range cases {
-		if got := ResolvePath(in, "/base"); got != want {
+		if got := ResolvePath(in, base); got != want {
 			t.Errorf("ResolvePath(%q) = %q, want %q", in, got, want)
 		}
 	}

@@ -154,8 +154,9 @@ func (h *harness) settle(cmd tea.Cmd) {
 	if cmd == nil {
 		return
 	}
-	// Copy commands return immediately; blink/tick commands sleep. Give each
-	// command a short window and feed back only copiedMsg results.
+	// Commands the tests trigger (copy, quit) return immediately. The window
+	// is generous so slow CI machines don't make this flaky; a timer command
+	// would simply be abandoned after it.
 	done := make(chan tea.Msg, 1)
 	go func() { done <- cmd() }()
 	select {
@@ -163,7 +164,7 @@ func (h *harness) settle(cmd tea.Cmd) {
 		if cm, ok := msg.(copiedMsg); ok {
 			h.send(cm)
 		}
-	case <-time.After(40 * time.Millisecond):
+	case <-time.After(3 * time.Second):
 	}
 }
 
