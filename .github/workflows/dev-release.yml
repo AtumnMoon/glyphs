@@ -3,7 +3,7 @@ name: Dev Release
 on:
   push:
     tags:
-      - 'v*-[a-z]*' # Matches tags like v0.1.0-dev, v1.0.0-alpha, etc.
+      - 'v*'
 
 permissions:
   contents: write

@@ -1,0 +1,11 @@
+[tools]
+"aqua:goreleaser/goreleaser" = "2.18.2"
+"aqua:nektos/act" = "0.2.89"
+podman = { version = "6.1.3", rename_exe = "podman-remote" }
+
+[tasks]
+# Run a local GoReleaser dry-run
+test-release = "goreleaser check && goreleaser healthcheck"
+
+# Run GitHub Actions locally using your Podman socket
+test-ci = "DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock act -j goreleaser"

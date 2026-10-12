@@ -23,19 +23,22 @@ builds:
 
 archives:
   - id: raw-binaries
-    builds:
+    ids:
       - glyphs-build
-    format: binary
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ .Ext }}"
+    formats:
+      - binary
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
   - id: compressed-archives
-    builds:
+    ids:
       - glyphs-build
-    format: tar.gz
+    formats: 
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: 
+          - zip
 
 release:
   github:

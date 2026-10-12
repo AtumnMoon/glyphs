@@ -79,6 +79,10 @@ func Main() int {
 			usage()
 			return 1
 		}
+
+		// Kill and replace existing one
+		_, _ = app.Kill(cfg)
+
 		if *keep {
 			cfg.QuitAfterCopy = false
 		}
@@ -93,6 +97,7 @@ func Main() int {
 	case *listen:
 		return app.LaunchListener(cfg)
 	case *listenShell:
+		_, _ = app.Kill(cfg)
 		return app.RunListener(cfg)
 	case *kill:
 		stopped, err := app.Kill(cfg)
