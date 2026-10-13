@@ -17,15 +17,6 @@ func detach(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNewProcessGroup | detachedProcess}
 }
 
-func alive(pid int) bool {
-	p, err := os.FindProcess(pid) // on Windows this fails if the process is gone
-	if err != nil {
-		return false
-	}
-	_ = p.Release()
-	return true
-}
-
 func terminate(pid int) error {
 	p, err := os.FindProcess(pid)
 	if err != nil {

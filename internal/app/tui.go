@@ -39,6 +39,13 @@ func LaunchTUI(cfg config.Config, startTab string) int {
 		return fail(err)
 	}
 
+	// Only one TUI at a time: a new one replaces any that is already open.
+	release, err := claimTUI(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	defer release()
+
 	historyFile := filepath.Join(cfg.Dir, "clipboard_history.json")
 	model := ui.New(ui.Deps{
 		Config:     cfg,
@@ -62,4 +69,14 @@ func LaunchTUI(cfg config.Config, startTab string) int {
 		return 1
 	}
 	return 0
+}
+
+// claimTUI makes this process the only TUI: any other running TUI is asked to
+// quit first. The returned function gives up the claim on exit.
+func claimTUI(cfg config.Config) (release func(), err error) {
+	inst, err := acquire(cfg.TUILockFile(), cfg.TUIPIDFile(), "glyphs TUI", true, 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	return inst.release, nil
 }

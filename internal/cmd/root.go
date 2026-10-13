@@ -80,9 +80,6 @@ func Main() int {
 			return 1
 		}
 
-		// Kill and replace existing one
-		_, _ = app.Kill(cfg)
-
 		if *keep {
 			cfg.QuitAfterCopy = false
 		}

@@ -40,39 +40,13 @@ func initClipboard() error {
 	return nil
 }
 
-func readPID(cfg config.Config) (int, bool) {
-	b, err := os.ReadFile(cfg.PIDFile())
-	if err != nil {
-		return 0, false
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil || pid <= 0 {
-		return 0, false
-	}
-	return pid, alive(pid)
-}
-
-// IsListenerRunning reports whether a background listener is alive.
-func IsListenerRunning(cfg config.Config) bool {
-	_, ok := readPID(cfg)
-	return ok
-}
+// IsListenerRunning reports whether a background listener is alive, i.e.
+// whether something holds the listener's lock.
+func IsListenerRunning(cfg config.Config) bool { return isHeld(cfg.ListenerLockFile()) }
 
 // Kill stops the background listener if there is one.
 func Kill(cfg config.Config) (bool, error) {
-	pid, ok := readPID(cfg)
-	if !ok {
-		_ = os.Remove(cfg.PIDFile())
-		return false, nil
-	}
-	if err := terminate(pid); err != nil {
-		return false, fmt.Errorf("stop listener (pid %d): %w", pid, err)
-	}
-	for i := 0; i < 20 && alive(pid); i++ {
-		time.Sleep(50 * time.Millisecond)
-	}
-	_ = os.Remove(cfg.PIDFile())
-	return true, nil
+	return stop(cfg.ListenerLockFile(), cfg.PIDFile(), "listener")
 }
 
 // LaunchListener starts the listener as a detached background process,
@@ -119,15 +93,12 @@ func RunListener(cfg config.Config) int {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
 	}
-	if pid, ok := readPID(cfg); ok && pid != os.Getpid() {
-		fmt.Fprintf(os.Stderr, "error: a listener is already running (pid %d); use -kill first\n", pid)
+	inst, err := acquire(cfg.ListenerLockFile(), cfg.PIDFile(), "listener", false, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v; use -kill first\n", err)
 		return 1
 	}
-	if err := os.WriteFile(cfg.PIDFile(), []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
-		fmt.Fprintln(os.Stderr, "error: write pid file:", err)
-		return 1
-	}
-	defer os.Remove(cfg.PIDFile())
+	defer inst.release()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
