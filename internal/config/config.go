@@ -24,6 +24,13 @@ const (
 	FileName = "config.json"
 	// PIDFileName holds the PID of the background listener.
 	PIDFileName = "listener.pid"
+	// ListenerLockName / TUILockName are the lock files that prove an instance
+	// is alive: the OS releases them when the owning process dies, however it
+	// dies, so unlike a pid they can never be stale.
+	ListenerLockName = "listener.lock"
+	TUILockName      = "tui.lock"
+	// TUIPIDFileName holds the PID of the running TUI, so only one runs at a time.
+	TUIPIDFileName = "tui.pid"
 	// PauseFileName holds the unix time (seconds) until which listening is paused.
 	PauseFileName = "paused_until"
 )
@@ -41,7 +48,10 @@ type Config struct {
 	EnableMouse       bool              `json:"enableMouse"`
 	EnableDescription bool              `json:"enableDescription"`
 	QuitAfterCopy     bool              `json:"quitAfterCopy"`
-	DefaultTab        string            `json:"defaultTab"` // kaomoji | emoji | clipboard
+	DefaultTab        string            `json:"defaultTab"`   // clipboard | kaomoji | emoji
+	SearchOnOpen      []string          `json:"searchOnOpen"` // tabs whose search box starts focused
+	ImagePreview      string            `json:"imagePreview"` // auto | sixel | basic | off
+	SimpleEmoji       bool              `json:"simpleEmoji"`  // hide joined (ZWJ) emoji sequences
 
 	// Dir is the resolved config directory (not serialised).
 	Dir string `json:"-"`
@@ -61,7 +71,9 @@ func Default() Config {
 		EnableMouse:       true,
 		EnableDescription: true,
 		QuitAfterCopy:     true,
-		DefaultTab:        "kaomoji",
+		DefaultTab:        "clipboard",
+		SearchOnOpen:      []string{"emoji"},
+		ImagePreview:      "auto",
 	}
 }
 
@@ -197,7 +209,16 @@ func resolve(cfg Config) Config {
 	case "kaomoji", "emoji", "clipboard":
 		cfg.DefaultTab = strings.ToLower(cfg.DefaultTab)
 	default:
-		cfg.DefaultTab = "kaomoji"
+		cfg.DefaultTab = "clipboard"
+	}
+	switch strings.ToLower(cfg.ImagePreview) {
+	case "auto", "sixel", "basic", "off":
+		cfg.ImagePreview = strings.ToLower(cfg.ImagePreview)
+	default:
+		cfg.ImagePreview = "auto"
+	}
+	for i, t := range cfg.SearchOnOpen {
+		cfg.SearchOnOpen[i] = strings.ToLower(strings.TrimSpace(t))
 	}
 	return cfg
 }
@@ -221,6 +242,15 @@ func ResolvePath(p, base string) string {
 
 // PIDFile is the path of the listener's pid file.
 func (c Config) PIDFile() string { return filepath.Join(c.Dir, PIDFileName) }
+
+// ListenerLockFile is the lock file held by the running listener.
+func (c Config) ListenerLockFile() string { return filepath.Join(c.Dir, ListenerLockName) }
+
+// TUILockFile is the lock file held by the running TUI.
+func (c Config) TUILockFile() string { return filepath.Join(c.Dir, TUILockName) }
+
+// TUIPIDFile is the path of the TUI's pid file.
+func (c Config) TUIPIDFile() string { return filepath.Join(c.Dir, TUIPIDFileName) }
 
 // PauseFile is the path of the pause marker file.
 func (c Config) PauseFile() string { return filepath.Join(c.Dir, PauseFileName) }

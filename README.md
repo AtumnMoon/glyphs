@@ -5,7 +5,7 @@ The clipboard side is inspired by [clipse](https://github.com/savedra1/clipse).
 
 ```
 glyphs                      # open the TUI
-glyphs -tab clipboard       # open on a given tab (kaomoji | emoji | clipboard)
+glyphs -tab emoji           # open on a given tab (clipboard | kaomoji | emoji)
 glyphs -listen              # record clipboard changes in the background
 ```
 
@@ -13,14 +13,42 @@ glyphs -listen              # record clipboard changes in the background
 
 | Tab | What it does |
 | --- | --- |
-| **Kaomoji** | Category list + grid. `Enter` copies. |
-| **Emoji** | Group list + grid, search by name/tag, `t` cycles skin tone. |
-| **Clipboard** | History with preview (text and images), pinning, multi-select, fuzzy filter, live updates. |
+| **Clipboard** | History list (opens first). Pin, multi-select, delete, fuzzy search, live updates. `Space` opens a full-pane preview. |
+| **Kaomoji** | Category list + grid. |
+| **Emoji** | Group list + grid, `t` cycles skin tone. Search box is focused when the tab opens. |
 
-Keys (all rebindable, press `?` in the app): arrows/hjkl move, `Enter` copy,
-`/` filter, `Tab`/`Shift+Tab` switch tab. Clipboard tab: `p` pin, `Ctrl+P`
-pinned-only, `Backspace` delete (asks first for pinned), `s` / `Shift+↑↓`
-multi-select, `Space` toggle preview.
+### One TUI at a time
+Opening glyphs while another TUI is open closes the old one and opens the new
+one. The background listener is never touched.
+
+Instances are tracked with OS file locks (`tui.lock`, `listener.lock` in the
+config directory), not just pids: the OS releases a lock the moment its owner
+dies, so a crash can never leave a "running" instance behind, and a leftover
+pid file is never acted on.
+
+### Search
+Every tab has a search bar under the tab bar. Press `/` to type in it (the Emoji
+tab starts with it focused; change that with `searchOnOpen`). While typing:
+letters edit the query, `↑↓←→` move through results, `Enter` copies, `Esc`
+hands the keyboard back to the normal keys (the query stays), `Esc` again
+clears it.
+
+In the Emoji and Kaomoji tabs the group list narrows to the groups that contain
+matches, with counts, so searching `happy` shows at once where hits are.
+
+### Clipboard preview
+Closed by default. `Space` opens it over the whole pane, like clipse: `↑↓`
+scroll a line, `←→` a page (with a scroll percentage), `Enter` copies, `Space`
+or `Esc` closes. Images are drawn as a real bitmap in terminals that support
+sixel (foot, WezTerm, mlterm, ...). glyphs asks the terminal at startup, so no
+setup is needed. Elsewhere it falls back to a half-block approximation. Set
+`imagePreview` to `sixel`, `basic` or `off` to force a mode.
+
+### Keys
+All rebindable (press `?` in the app). Arrows or `hjkl` move, `Enter` copies,
+`/` searches, `Tab` / `Shift+Tab` switch tab. Clipboard: `p` pin, `Ctrl+P`
+pinned-only, `x` / `Backspace` delete (asks first for pinned), `s` /
+`Shift+↑↓` multi-select, `Space` preview.
 
 ## CLI
 
@@ -53,7 +81,10 @@ is created on first run. Missing keys fall back to defaults.
 | `excludedPatterns` | `[]` | Regexes; matching text is never recorded, e.g. `"^sk-[A-Za-z0-9]+$"` |
 | `maxHistory` | `100` | Max entries (pinned never count against it); `0` = unlimited |
 | `quitAfterCopy` | `true` | Exit after picking an item |
-| `defaultTab` | `kaomoji` | Tab opened by default |
+| `defaultTab` | `clipboard` | Tab opened by default |
+| `searchOnOpen` | `["emoji"]` | Tabs whose search box starts focused (`clipboard`, `kaomoji`, `emoji`) |
+| `imagePreview` | `auto` | `auto`, `sixel`, `basic` or `off` |
+| `simpleEmoji` | `false` | Hide joined (ZWJ) emoji sequences; turn on if your terminal garbles them |
 | `maxEntryLength` | `65` | Max characters of an entry shown in the list |
 | `enableDescription` | `true` | Second line (time, size) per entry |
 | `enableMouse` | `true` | Wheel scrolling, click tabs |

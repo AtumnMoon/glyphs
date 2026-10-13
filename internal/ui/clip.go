@@ -5,11 +5,13 @@ import (
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
-	"image/png"
+	_ "image/png"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/AtumnMoon/glyphs/internal/clipboard"
 )
@@ -24,19 +26,21 @@ func isImage(e clipboard.ClipboardEntry) bool { return e.FilePath != "null" && e
 
 // clipState is the clipboard-history tab.
 type clipState struct {
-	entries     []clipboard.ClipboardEntry // snapshot of the file, newest first
-	view        []int                      // indexes into entries currently listed
-	cur         cursor
-	selected    map[string]bool // multi-select, by entry key
-	pinnedOnly  bool
-	showPreview bool
-	modTime     time.Time
-	rowsVis     int // list rows (items) visible; set by layout
-	imgCache    map[string]string
+	entries    []clipboard.ClipboardEntry // snapshot of the file, newest first
+	view       []int                      // indexes into entries currently listed
+	cur        cursor
+	selected   map[string]bool // multi-select, by entry key
+	pinnedOnly bool
+	prevOff    int // first visible line of the text preview
+	modTime    time.Time
+	rowsVis    int // list rows (items) visible; set by layout
+	imgCache   map[string]string
+	wrapKey    string   // cache key of wrapped
+	wrapped    []string // text preview lines for wrapKey
 }
 
 func newClipState() *clipState {
-	return &clipState{selected: map[string]bool{}, showPreview: true, imgCache: map[string]string{}}
+	return &clipState{selected: map[string]bool{}, imgCache: map[string]string{}}
 }
 
 // apply rebuilds the visible list for the query and pinned-only toggle,
@@ -186,89 +190,30 @@ func entryDesc(e clipboard.ClipboardEntry) string {
 	return fmt.Sprintf("%s · %d chars · %d line(s)", e.Recorded, len([]rune(e.Value)), lines)
 }
 
-// renderImage draws a PNG/JPEG/GIF using half-block characters (two pixels
-// per cell, 24-bit colour), scaled to fit w×h cells. Results are cached.
-func (c *clipState) renderImage(path string, w, h int) string {
-	cacheKey := fmt.Sprintf("%s|%d|%d", path, w, h)
-	if s, ok := c.imgCache[cacheKey]; ok {
-		return s
+type clipEntry = clipboard.ClipboardEntry
+
+// textLines returns the entry's text hard-wrapped to width w, cached because
+// the preview asks for it on every keypress.
+func (c *clipState) textLines(e clipEntry, w int) []string {
+	key := fmt.Sprintf("%s|%d", entryKey(e), w)
+	if key != c.wrapKey {
+		text := strings.ReplaceAll(strings.ReplaceAll(e.Value, "\r\n", "\n"), "\t", "    ")
+		c.wrapped = strings.Split(ansi.Hardwrap(text, max(w, 1), true), "\n")
+		c.wrapKey = key
 	}
-	out := drawHalfBlocks(path, w, h)
-	if len(c.imgCache) > 16 {
-		c.imgCache = map[string]string{}
-	}
-	c.imgCache[cacheKey] = out
-	return out
+	return c.wrapped
 }
 
-func drawHalfBlocks(path string, w, h int) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return "(image file missing)"
+// basicImage renders the half-block fallback, cached per size.
+func (c *clipState) basicImage(path string, w, h int) string {
+	key := fmt.Sprintf("%s|%d|%d", path, w, h)
+	if s, ok := c.imgCache[key]; ok {
+		return s
 	}
-	defer f.Close()
-	img, err := png.Decode(f)
-	if err != nil {
-		// try the generic decoder (jpeg/gif registered above)
-		if _, serr := f.Seek(0, 0); serr != nil {
-			return "(cannot read image)"
-		}
-		img, _, err = image.Decode(f)
-		if err != nil {
-			return "(cannot decode image)"
-		}
+	if len(c.imgCache) > 8 {
+		c.imgCache = map[string]string{}
 	}
-	b := img.Bounds()
-	iw, ih := b.Dx(), b.Dy()
-	if iw == 0 || ih == 0 || w < 1 || h < 1 {
-		return ""
-	}
-	// each cell is 1 px wide, 2 px tall
-	pxW, pxH := w, h*2
-	scale := min(float64(pxW)/float64(iw), float64(pxH)/float64(ih))
-	if scale > 1 {
-		scale = 1
-	}
-	tw := max(int(float64(iw)*scale), 1)
-	th := max(int(float64(ih)*scale), 1)
-	if th%2 == 1 {
-		th++
-	}
-
-	// box-average sampling
-	sample := func(x, y int) (r, g, bl uint32) {
-		x0, x1 := x*iw/tw, max((x+1)*iw/tw, x*iw/tw+1)
-		y0, y1 := y*ih/th, max((y+1)*ih/th, y*ih/th+1)
-		var rs, gs, bs, n uint32
-		for yy := y0; yy < y1 && yy < ih; yy++ {
-			for xx := x0; xx < x1 && xx < iw; xx++ {
-				cr, cg, cb, ca := img.At(b.Min.X+xx, b.Min.Y+yy).RGBA()
-				if ca == 0 {
-					continue
-				}
-				rs += cr >> 8
-				gs += cg >> 8
-				bs += cb >> 8
-				n++
-			}
-		}
-		if n == 0 {
-			return 0, 0, 0
-		}
-		return rs / n, gs / n, bs / n
-	}
-
-	var sb strings.Builder
-	for y := 0; y < th; y += 2 {
-		for x := 0; x < tw; x++ {
-			r1, g1, b1 := sample(x, y)
-			r2, g2, b2 := sample(x, y+1)
-			fmt.Fprintf(&sb, "\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀", r1, g1, b1, r2, g2, b2)
-		}
-		sb.WriteString("\x1b[0m")
-		if y+2 < th {
-			sb.WriteByte('\n')
-		}
-	}
-	return sb.String()
+	s := renderBasic(path, w, h)
+	c.imgCache[key] = s
+	return s
 }

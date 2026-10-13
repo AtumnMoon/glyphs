@@ -12,6 +12,7 @@ import (
 // item is one pickable glyph in the Kaomoji/Emoji panels.
 type item struct {
 	text   string      // what gets copied / drawn
+	width  int         // display width of text in cells (cached)
 	label  string      // short description shown under the grid
 	detail string      // extra info (tags / category)
 	hay    string      // lowercase search haystack
@@ -19,54 +20,98 @@ type item struct {
 }
 
 // browser is the two-pane "groups | grid" view shared by both picker tabs.
+//
+// groups[0] is "All"; the others are categories. While a search is active the
+// group pane only lists groups that still contain matches (with match counts),
+// so typing "happy" immediately shows where the matches live and picking a
+// group narrows the results to it.
 type browser struct {
-	names      []string // left pane labels; index 0 is always "All"
-	groups     [][]item // groups[0] is the union of everything
-	gcur       cursor   // selected group
-	icur       cursor   // selected item (idx into shown)
-	focusItems bool
+	names  []string // group labels; index 0 is always "All"
+	groups [][]item // full, unfiltered contents
+	maxW   int      // widest item, in cells
+	maxCol int      // upper bound on grid columns (0 = unlimited)
 
-	shown     []item // what the grid currently displays
-	cellW     int    // display width of a grid cell
-	cols      int    // grid columns (set by layout)
-	gridRows  int    // visible grid rows (set by layout)
-	groupRows int    // visible group rows (set by layout)
+	filtered [][]item // groups after applying the query
+	vis      []int    // indexes into groups of non-empty groups (0 always present)
+	gcur     cursor   // selected row in vis
+	icur     cursor   // selected item (idx into shown)
+	shown    []item   // filtered[vis[gcur.idx]]
+
+	focusItems bool
+	cellW      int // display width of a grid cell
+	cols       int // grid columns (set by layout)
+	gridRows   int // visible grid rows (set by layout)
+	groupRows  int // visible group rows (set by layout)
 }
 
 func newBrowser(names []string, groups [][]item) *browser {
 	b := &browser{names: names, groups: groups}
+	for _, it := range groups[0] {
+		b.maxW = max(b.maxW, it.width)
+	}
+	b.cellW = b.maxW + 2
 	b.refresh("")
 	return b
 }
 
-// refresh recomputes b.shown for the active group/query and resets the item
-// cursor. A non-empty query searches every item regardless of group.
+func matches(it item, terms []string) bool {
+	for _, t := range terms {
+		if !strings.Contains(it.hay, t) {
+			return false
+		}
+	}
+	return true
+}
+
+// currentGroup returns the index into groups of the selected group.
+func (b *browser) currentGroup() int {
+	if len(b.vis) == 0 {
+		return 0
+	}
+	return b.vis[clamp(b.gcur.idx, 0, len(b.vis)-1)]
+}
+
+// refresh re-applies the query. The selected group is kept when it still has
+// matches. With a non-empty query, focus moves to the results so the arrow
+// keys and Enter act on them straight away.
 func (b *browser) refresh(query string) {
-	src := b.groups[b.gcur.idx]
-	if q := strings.ToLower(strings.TrimSpace(query)); q != "" {
-		terms := strings.Fields(q)
-		var out []item
-		for _, it := range b.groups[0] {
-			ok := true
-			for _, t := range terms {
-				if !strings.Contains(it.hay, t) {
-					ok = false
-					break
+	prev := b.currentGroup()
+	terms := strings.Fields(strings.ToLower(query))
+
+	b.filtered = make([][]item, len(b.groups))
+	b.vis = b.vis[:0]
+	for gi, g := range b.groups {
+		if len(terms) == 0 {
+			b.filtered[gi] = g
+		} else {
+			for _, it := range g {
+				if matches(it, terms) {
+					b.filtered[gi] = append(b.filtered[gi], it)
 				}
 			}
-			if ok {
-				out = append(out, it)
-			}
 		}
-		src = out
+		if gi == 0 || len(b.filtered[gi]) > 0 {
+			b.vis = append(b.vis, gi)
+		}
 	}
-	b.shown = src
+
+	b.gcur.idx = 0
+	for vi, gi := range b.vis {
+		if gi == prev {
+			b.gcur.idx = vi
+		}
+	}
+	b.gcur.off = 0
+	b.selectGroup()
+	if len(terms) > 0 {
+		b.focusItems = len(b.shown) > 0
+	}
+}
+
+// selectGroup recomputes shown for the selected group and resets the item cursor.
+func (b *browser) selectGroup() {
+	b.shown = b.filtered[b.currentGroup()]
 	b.icur = cursor{}
-	w := 0
-	for _, it := range b.shown {
-		w = max(w, ansi.StringWidth(it.text))
-	}
-	b.cellW = w + 2
 }
 
 // current returns the highlighted item.
@@ -79,13 +124,11 @@ func (b *browser) current() (item, bool) {
 
 func (b *browser) cols0() int { return max(b.cols, 1) }
 
-// move handles directional keys. While a search is active the group pane is
-// bypassed and every key drives the grid. It returns true if the selected
-// group changed (the caller must then refresh with the active query).
-func (b *browser) move(dir string, searching bool) (groupChanged bool) {
+// move handles directional keys and reports whether the selected group changed.
+func (b *browser) move(dir string) (groupChanged bool) {
 	n := len(b.shown)
 	c := b.cols0()
-	grid := b.focusItems || searching
+	grid := b.focusItems
 	switch dir {
 	case "up":
 		if grid {
@@ -94,6 +137,7 @@ func (b *browser) move(dir string, searching bool) (groupChanged bool) {
 			}
 		} else if b.gcur.idx > 0 {
 			b.gcur.idx--
+			b.selectGroup()
 			return true
 		}
 	case "down":
@@ -104,14 +148,15 @@ func (b *browser) move(dir string, searching bool) (groupChanged bool) {
 			case n > 0 && b.icur.idx/c < (n-1)/c:
 				b.icur.idx = n - 1 // short last row
 			}
-		} else if b.gcur.idx < len(b.groups)-1 {
+		} else if b.gcur.idx < len(b.vis)-1 {
 			b.gcur.idx++
+			b.selectGroup()
 			return true
 		}
 	case "left":
 		switch {
 		case !grid:
-		case b.icur.idx%c == 0 && !searching:
+		case b.icur.idx%c == 0:
 			b.focusItems = false // leave the grid for the group pane
 		case b.icur.idx > 0:
 			b.icur.idx--
@@ -128,13 +173,15 @@ func (b *browser) move(dir string, searching bool) (groupChanged bool) {
 			b.icur.idx = 0
 		} else if b.gcur.idx != 0 {
 			b.gcur.idx = 0
+			b.selectGroup()
 			return true
 		}
 	case "end":
 		if grid {
 			b.icur.idx = max(n-1, 0)
-		} else if b.gcur.idx != len(b.groups)-1 {
-			b.gcur.idx = len(b.groups) - 1
+		} else if b.gcur.idx != len(b.vis)-1 {
+			b.gcur.idx = len(b.vis) - 1
+			b.selectGroup()
 			return true
 		}
 	}
@@ -155,6 +202,7 @@ func buildKaomoji(store *data.KaomojiStore) *browser {
 	for _, k := range store.All() {
 		all = append(all, item{
 			text:   k.Value,
+			width:  ansi.StringWidth(k.Value),
 			label:  title(k.Category),
 			detail: "category: " + k.Category,
 			hay:    strings.ToLower(k.Category + " " + k.Value),
@@ -166,7 +214,7 @@ func buildKaomoji(store *data.KaomojiStore) *browser {
 		var g []item
 		for _, k := range store.ByCategory(c) {
 			g = append(g, item{
-				text: k.Value, label: title(k.Category), detail: "category: " + k.Category,
+				text: k.Value, width: ansi.StringWidth(k.Value), label: title(k.Category), detail: "category: " + k.Category,
 				hay: strings.ToLower(k.Category + " " + k.Value),
 			})
 		}
@@ -180,7 +228,10 @@ func buildKaomoji(store *data.KaomojiStore) *browser {
 // styles); those aren't useful as standalone picks, so the picker hides them.
 const componentGroup = 2
 
-func buildEmoji(store *data.EmojiStore) *browser {
+// buildEmoji builds the emoji picker. With simple set, multi-person/profession
+// sequences joined by U+200D are left out: some terminals (xterm, older VTE)
+// draw them as several glyphs and lose track of the cursor.
+func buildEmoji(store *data.EmojiStore, simple bool) *browser {
 	type bucket struct {
 		name  string
 		items []item
@@ -191,6 +242,9 @@ func buildEmoji(store *data.EmojiStore) *browser {
 		if e.Group != nil && *e.Group == componentGroup {
 			continue
 		}
+		if simple && strings.ContainsRune(e.Unicode, '\u200d') {
+			continue
+		}
 		e := e
 		gk, gname := -1, "Other"
 		if e.Group != nil {
@@ -198,6 +252,7 @@ func buildEmoji(store *data.EmojiStore) *browser {
 		}
 		it := item{
 			text:   e.Unicode,
+			width:  ansi.StringWidth(e.Unicode),
 			label:  e.Label,
 			detail: strings.Join(e.Tags, ", "),
 			hay:    strings.ToLower(e.Label + " " + strings.Join(e.Tags, " ")),
@@ -213,7 +268,14 @@ func buildEmoji(store *data.EmojiStore) *browser {
 	for k := range buckets {
 		keys = append(keys, k)
 	}
-	sort.Ints(keys)
+	// real groups in Unicode order; the catch-all "Other" (-1) goes last
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := keys[i], keys[j]
+		if (a < 0) != (b < 0) {
+			return b < 0
+		}
+		return a < b
+	})
 	names := []string{"All"}
 	groups := [][]item{all}
 	for _, k := range keys {
@@ -221,7 +283,10 @@ func buildEmoji(store *data.EmojiStore) *browser {
 		groups = append(groups, buckets[k].items)
 	}
 	b := newBrowser(names, groups)
+	// Emoji are two cells wide. Cap the column count: a 45-column grid of
+	// colour glyphs is slow for terminals to repaint and hard to scan.
 	b.cellW = 4
+	b.maxCol = 20
 	return b
 }
 

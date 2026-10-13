@@ -3,11 +3,13 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/AtumnMoon/glyphs/internal/clipboard"
 	"github.com/AtumnMoon/glyphs/internal/config"
@@ -17,12 +19,14 @@ import (
 type tabID int
 
 const (
-	tabKaomoji tabID = iota
+	tabClipboard tabID = iota
+	tabKaomoji
 	tabEmoji
-	tabClipboard
 )
 
-var tabNames = []string{"Kaomoji", "Emoji", "Clipboard"}
+var tabNames = []string{"Clipboard", "Kaomoji", "Emoji"}
+
+func (t tabID) key() string { return strings.ToLower(tabNames[t]) }
 
 // Deps is everything the UI needs from the outside world.
 type Deps struct {
@@ -48,6 +52,12 @@ type (
 		label string
 		err   error
 	}
+	// imageMsg carries an encoded sixel image ready to be written to the
+	// terminal. sig identifies what it was encoded for; stale ones are dropped.
+	imageMsg struct {
+		sig  string
+		data string
+	}
 )
 
 type model struct {
@@ -59,14 +69,23 @@ type model struct {
 
 	width, height int
 	g             geom
+	helpKey       string // layout cache key for helpView
+	helpView      string
+	helpH         int
 
-	tab       tabID
-	filtering bool
-	query     string
+	tab     tabID
+	typing  bool // search box has focus: printable keys edit the query
+	query   string
+	preview bool // clipboard: full-pane preview is open
 
 	kao, emo *browser
 	clip     *clipState
 	skin     int // 0 = default, 1..5 = skin tone
+
+	// Terminal capabilities, learned from replies to queries sent at startup.
+	sixelOK        bool
+	cellW, cellH   int    // cell size in pixels (0 = unknown)
+	imgSig, imgReq string // signature of the image on screen / being encoded
 
 	status    string
 	statusErr bool
@@ -90,22 +109,36 @@ func New(d Deps, startTab string) tea.Model {
 		help: help.New(),
 		st:   newStyles(cfg.Theme),
 		kao:  buildKaomoji(d.Kaomoji),
-		emo:  buildEmoji(d.Emoji),
+		emo:  buildEmoji(d.Emoji, cfg.SimpleEmoji),
 		clip: newClipState(),
 	}
 	switch strings.ToLower(startTab) {
 	case "emoji":
 		m.tab = tabEmoji
-	case "clipboard":
-		m.tab = tabClipboard
-	default:
+	case "kaomoji":
 		m.tab = tabKaomoji
+	default:
+		m.tab = tabClipboard
 	}
+	m.typing = m.searchOnOpen(m.tab)
 	m.reloadClip(true)
 	return m
 }
 
-func (m *model) Init() tea.Cmd { return tick() }
+// Init starts the refresh tick and asks the terminal two things: does it do
+// sixel graphics (primary device attributes), and how big is a cell in pixels.
+// Terminals that don't answer simply keep the character-cell fallback.
+func (m *model) Init() tea.Cmd {
+	return tea.Batch(
+		tick(),
+		tea.Raw(ansi.RequestPrimaryDeviceAttributes),
+		tea.Raw(ansi.WindowOp(ansi.RequestCellSizeWinOp)),
+	)
+}
+
+func (m *model) searchOnOpen(t tabID) bool {
+	return slices.Contains(m.cfg.SearchOnOpen, t.key())
+}
 
 func tick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
@@ -160,7 +193,8 @@ func (m *model) applyQuery() {
 func (m *model) switchTab(t tabID) {
 	m.tab = t
 	m.query = ""
-	m.filtering = false
+	m.typing = m.searchOnOpen(t)
+	m.preview = false
 	m.confirm = nil
 	m.kao.refresh("")
 	m.emo.refresh("")

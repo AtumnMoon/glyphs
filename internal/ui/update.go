@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -15,6 +17,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.help.SetWidth(m.width)
+		m.imgSig, m.imgReq = "", "" // the screen is repainted: redraw any image
+
+	case uv.PrimaryDeviceAttributesEvent:
+		m.sixelOK = slices.Contains(msg, 4) // attribute 4 = sixel graphics
+
+	case uv.CellSizeEvent:
+		m.cellW, m.cellH = msg.Width, msg.Height
+
+	case imageMsg:
+		if msg.sig == m.imgReq && msg.sig != "" {
+			m.imgSig = msg.sig
+			if msg.data != "" {
+				cmd = tea.Raw(msg.data)
+			}
+		}
 
 	case tickMsg:
 		m.reloadClip(false)
@@ -56,12 +73,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.quitting {
 			return m, cmd
 		}
-
 	}
 
 	m.layout()
 	m.fixCursors()
-	return m, cmd
+	return m, tea.Batch(cmd, m.syncImage())
 }
 
 func (m *model) onKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -71,47 +87,59 @@ func (m *model) onKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.quitting = true
 		return tea.Quit
 	}
-	if m.confirm != nil {
+	switch {
+	case m.confirm != nil:
 		return m.onConfirm(msg)
-	}
-	if m.filtering {
-		return m.onFilterKey(msg)
+	case m.preview:
+		return m.onPreviewKey(msg)
+	case m.typing:
+		return m.onTypingKey(msg)
 	}
 	return m.onNormalKey(msg)
 }
 
-func (m *model) onFilterKey(msg tea.KeyPressMsg) tea.Cmd {
+func (m *model) nextTab(delta int) {
+	n := len(tabNames)
+	m.switchTab(tabID((int(m.tab) + delta + n) % n))
+}
+
+// onTypingKey handles keys while the search box has focus: printable keys edit
+// the query, arrows and Enter act on the results, Esc hands the keyboard back
+// to the normal single-key commands (keeping the query).
+func (m *model) onTypingKey(msg tea.KeyPressMsg) tea.Cmd {
 	s := msg.String()
 	switch {
 	case s == "esc":
-		m.filtering, m.query = false, ""
-		m.applyQuery()
+		m.typing = false
 		return nil
 	case s == "enter":
-		m.filtering = false
-		return nil
-	case s == "up" || s == "down":
+		return m.choose()
+	case s == "up" || s == "down" || s == "left" || s == "right" || s == "home" || s == "end":
 		m.navigate(s)
 		return nil
 	case key.Matches(msg, m.keys.NextTab):
-		m.switchTab((m.tab + 1) % tabID(len(tabNames)))
+		m.nextTab(1)
 		return nil
 	case key.Matches(msg, m.keys.PrevTab):
-		m.switchTab((m.tab + tabID(len(tabNames)) - 1) % tabID(len(tabNames)))
+		m.nextTab(-1)
 		return nil
-	}
-	// Minimal line editor: append printable text, backspace deletes a rune.
-	switch {
+	case s == "ctrl+u":
+		m.setQuery("")
+		return nil
 	case s == "backspace":
 		if r := []rune(m.query); len(r) > 0 {
-			m.query = string(r[:len(r)-1])
-			m.applyQuery()
+			m.setQuery(string(r[:len(r)-1]))
 		}
+		return nil
 	case msg.Text != "":
-		m.query += msg.Text
-		m.applyQuery()
+		m.setQuery(m.query + msg.Text)
 	}
 	return nil
+}
+
+func (m *model) setQuery(q string) {
+	m.query = q
+	m.applyQuery()
 }
 
 func (m *model) onConfirm(msg tea.KeyPressMsg) tea.Cmd {
@@ -130,8 +158,7 @@ func (m *model) onNormalKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case key.Matches(msg, k.Quit):
 		if m.query != "" {
-			m.query = ""
-			m.applyQuery()
+			m.setQuery("")
 			return nil
 		}
 		m.quitting = true
@@ -139,12 +166,11 @@ func (m *model) onNormalKey(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, k.More):
 		m.help.ShowAll = !m.help.ShowAll
 	case key.Matches(msg, k.NextTab):
-		m.switchTab((m.tab + 1) % tabID(len(tabNames)))
+		m.nextTab(1)
 	case key.Matches(msg, k.PrevTab):
-		m.switchTab((m.tab + tabID(len(tabNames)) - 1) % tabID(len(tabNames)))
+		m.nextTab(-1)
 	case key.Matches(msg, k.Filter):
-		m.filtering = true
-		return nil
+		m.typing = true
 	case key.Matches(msg, k.Up):
 		m.navigate("up")
 	case key.Matches(msg, k.Down):
@@ -168,12 +194,39 @@ func (m *model) onNormalKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// onPreviewKey handles the clipboard preview, modelled on clipse's: up/down
+// scroll a line, left/right a page, Enter copies, Space/Esc close it.
+func (m *model) onPreviewKey(msg tea.KeyPressMsg) tea.Cmd {
+	k, c := m.keys, m.clip
+	page := max(m.g.bodyH-3, 1)
+	switch {
+	case key.Matches(msg, k.Preview), key.Matches(msg, k.Quit):
+		m.preview = false
+	case key.Matches(msg, k.Choose):
+		return m.choose()
+	case key.Matches(msg, k.Up):
+		c.prevOff--
+	case key.Matches(msg, k.Down):
+		c.prevOff++
+	case key.Matches(msg, k.Left):
+		c.prevOff -= page
+	case key.Matches(msg, k.Right):
+		c.prevOff += page
+	case key.Matches(msg, k.Home):
+		c.prevOff = 0
+	case key.Matches(msg, k.End):
+		c.prevOff = 1 << 30 // clamped when rendered
+	}
+	return nil
+}
+
 // navigate moves the cursor of whichever pane is active.
 func (m *model) navigate(dir string) {
+	if m.preview {
+		return
+	}
 	if b := m.browser(); b != nil {
-		if b.move(dir, strings.TrimSpace(m.query) != "") {
-			b.refresh(m.query)
-		}
+		b.move(dir)
 		return
 	}
 	c := m.clip
@@ -200,7 +253,10 @@ func (m *model) onClipKey(msg tea.KeyPressMsg) {
 	k, c := m.keys, m.clip
 	switch {
 	case key.Matches(msg, k.Preview):
-		c.showPreview = !c.showPreview
+		if _, ok := c.current(); ok {
+			m.preview = true
+			c.prevOff = 0
+		}
 	case key.Matches(msg, k.TogglePinned):
 		c.pinnedOnly = !c.pinnedOnly
 		c.apply(m.query)
