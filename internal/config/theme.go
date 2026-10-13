@@ -20,22 +20,21 @@ type Theme struct {
 	InactiveTabBg string `json:"inactiveTabBg"`
 }
 
-// DefaultTheme is a purple/pink palette matching the original glyphs look.
 func DefaultTheme() Theme {
 	return Theme{
-		Accent:        "#7D56F4",
-		AccentFg:      "#FFFFFF",
-		Muted:         "#808080",
-		Text:          "#E6E6E6",
-		Selected:      "#FF75B7",
-		SelectedBg:    "#2A2140",
-		Pin:           "#FFD700",
-		Multi:         "#2ECC71",
-		Status:        "#2ECC71",
-		Error:         "#FF5555",
-		FilterPrompt:  "#2ECC71",
-		InactiveTabFg: "#AAAAAA",
-		InactiveTabBg: "#333333",
+		AccentFg:      "#090C09", // Onyx
+		Accent:        "#7A9B76", // Sage Green
+		Muted:         "#BAC9BA", // Ash Gray
+		Text:          "#BAC9BA", // Ash Gray
+		Selected:      "#090C09", // Onyx
+		SelectedBg:    "#7A7B76", // Sage Green
+		Pin:           "#6B8E9B", // Air Force Blue
+		Multi:         "#7A9B76", // Sage Green
+		Status:        "#7A9B76", // Sage Green
+		Error:         "#B36A5E", // Teracotta Clay
+		FilterPrompt:  "#7A9B76", // Sage Green
+		InactiveTabFg: "#BAC9BA", // Ash Gray
+		InactiveTabBg: "#2D3B2B", // Charcoal Brown
 	}
 }
 

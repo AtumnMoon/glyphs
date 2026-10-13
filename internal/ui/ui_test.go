@@ -272,10 +272,10 @@ func TestSearchKaomoji(t *testing.T) {
 	}
 }
 
-func TestSearchBarIsAlwaysVisible(t *testing.T) {
+func TestFilterIsAlwaysVisible(t *testing.T) {
 	for _, tab := range []string{"clipboard", "kaomoji", "emoji"} {
 		h := newHarness(t, tab, nil)
-		if !strings.Contains(h.view(), "search") {
+		if !strings.Contains(h.view(), "filter") && !strings.Contains(h.view(), "search") {
 			t.Errorf("%s: no search bar in view:\n%s", tab, h.view())
 		}
 	}
@@ -414,7 +414,7 @@ func TestClipboardPinDeleteConfirm(t *testing.T) {
 	if !all[1].Pinned || all[1].Value != "keep me" {
 		t.Fatalf("pin failed: %+v", all)
 	}
-	if !strings.Contains(h.view(), "★") {
+	if !strings.Contains(h.view(), "📌") {
 		t.Error("pin marker not shown")
 	}
 

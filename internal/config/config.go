@@ -24,9 +24,7 @@ const (
 	FileName = "config.json"
 	// PIDFileName holds the PID of the background listener.
 	PIDFileName = "listener.pid"
-	// ListenerLockName / TUILockName are the lock files that prove an instance
-	// is alive: the OS releases them when the owning process dies, however it
-	// dies, so unlike a pid they can never be stale.
+	// LockName are the lock files that prove an instance is alive
 	ListenerLockName = "listener.lock"
 	TUILockName      = "tui.lock"
 	// TUIPIDFileName holds the PID of the running TUI, so only one runs at a time.
