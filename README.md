@@ -26,7 +26,7 @@ or `Esc` closes. Images are drawn as a real bitmap in terminals that support
 sixel (foot, WezTerm, mlterm, ...). glyphs asks the terminal at startup, so no
 setup is needed. Elsewhere it falls back to a half-block approximation.
 
-Set `imagePreview` to `sixel` (default), `basic` or `off` to force a mode.
+Set `imagePreview` to `sixel`, `basic` or `off` to force a mode. Default is `auto`.
 
 ### Keys
 All rebindable (press `?` in the app).
@@ -76,6 +76,7 @@ is created on first run. Missing keys fall back to defaults.
 | `searchOnOpen` | `["emoji"]` | Tabs whose search box starts focused (`clipboard`, `kaomoji`, `emoji`) |
 | `imagePreview` | `auto` | `auto`, `sixel`, `basic` or `off` |
 | `simpleEmoji` | `false` | Hide joined (ZWJ) emoji sequences; turn on if your terminal garbles them |
+| `emojiColumns` / `emojiRows` | `16` / `8` | Emoji grid size. Drawing fewer glyphs per frame keeps first paint instant; `0` fills the window |
 | `maxEntryLength` | `65` | Max characters of an entry shown in the list |
 | `enableDescription` | `true` | Second line (time, size) per entry |
 | `enableMouse` | `true` | Wheel scrolling, click tabs |
