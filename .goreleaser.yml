@@ -45,3 +45,23 @@ release:
     owner: AtumnMoon
     name: glyphs
   prerelease: auto
+
+  header: |
+    {{ .TagContents }}
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^(?!feat|fix|refactor)'
+  groups:
+    - title: '🚀 Features'
+      regexp: '^feat(\(.*\))??!?:'
+      order: 0
+    - title: '🐛 Bug Fixes'
+      regexp: '^fix(\(.*\))??!?:'
+      order: 1
+    - title: '⚙️ Refactors'
+      regexp: '^refactor(\(.*\))??!?:'
+      order: 2
