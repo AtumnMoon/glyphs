@@ -26,10 +26,11 @@ type item struct {
 // so typing "happy" immediately shows where the matches live and picking a
 // group narrows the results to it.
 type browser struct {
-	names  []string // group labels; index 0 is always "All"
-	groups [][]item // full, unfiltered contents
-	maxW   int      // widest item, in cells
-	maxCol int      // upper bound on grid columns (0 = unlimited)
+	names   []string // group labels; index 0 is always "All"
+	groups  [][]item // full, unfiltered contents
+	maxW    int      // widest item, in cells
+	maxCol  int      // upper bound on grid columns (0 = unlimited)
+	maxRows int      // upper bound on visible grid rows (0 = unlimited)
 
 	filtered [][]item // groups after applying the query
 	vis      []int    // indexes into groups of non-empty groups (0 always present)
@@ -283,10 +284,8 @@ func buildEmoji(store *data.EmojiStore, simple bool) *browser {
 		groups = append(groups, buckets[k].items)
 	}
 	b := newBrowser(names, groups)
-	// Emoji are two cells wide. Cap the column count: a 45-column grid of
-	// colour glyphs is slow for terminals to repaint and hard to scan.
+	// Emoji are two cells wide; the caller applies the configured grid size.
 	b.cellW = 4
-	b.maxCol = 20
 	return b
 }
 

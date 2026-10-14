@@ -59,6 +59,9 @@ func (m *model) layout() {
 			b.cols = min(b.cols, b.maxCol)
 		}
 		b.gridRows = max(g.bodyH-1, 1)
+		if b.maxRows > 0 {
+			b.gridRows = min(b.gridRows, b.maxRows)
+		}
 		b.groupRows = max(g.bodyH-1, 1)
 	case tabClipboard:
 		g.rowsPerItem = 1
@@ -226,7 +229,7 @@ func (m *model) viewBrowser(b *browser) []string {
 	}
 	cell := min(max(b.cellW, 2), g.rightW)
 	cols := b.cols0()
-	for row := b.icur.off; len(right) < g.bodyH && row*cols < len(b.shown); row++ {
+	for row := b.icur.off; len(right) < g.bodyH && row-b.icur.off < b.gridRows && row*cols < len(b.shown); row++ {
 		right = append(right, m.gridRow(b, row, cols, cell, g.rightW, groupFocus))
 	}
 	return m.joinPanes(left, right, g.leftW, g.rightW, g.bodyH)

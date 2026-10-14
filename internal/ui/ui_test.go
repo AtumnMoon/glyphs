@@ -750,3 +750,50 @@ func TestSimpleEmojiHidesJoinedSequencesAndOtherIsLast(t *testing.T) {
 		t.Errorf("catch-all group should be last, got %q (names %v)", last, full.names)
 	}
 }
+
+// glyphRows counts the grid rows drawn in the right-hand pane of a picker tab.
+func glyphRows(h *harness) int {
+	n := 0
+	for l := range strings.SplitSeq(h.view(), "\n") {
+		if _, right, ok := strings.Cut(l, " │ "); ok && strings.TrimSpace(right) != "" {
+			n++
+		}
+	}
+	return n - 1 // minus the pane header
+}
+
+func TestEmojiGridIsBoundedByDefault(t *testing.T) {
+	h := newHarness(t, "emoji", nil)
+	h.send(tea.WindowSizeMsg{Width: 200, Height: 60})
+	b := h.model().emo
+	if b.cols > 16 || b.gridRows > 16 {
+		t.Fatalf("default grid should be at most 16x16, got %dx%d", b.cols, b.gridRows)
+	}
+	if got := glyphRows(h); got != 16 {
+		t.Errorf("drew %d grid rows on a tall window, want 8", got)
+	}
+	// scrolling still reaches every emoji
+	h.press("esc", "l") // focus the grid
+	for range 400 {
+		h.press("down")
+	}
+	if b.icur.idx < 16*16 {
+		t.Errorf("cursor stuck at %d: the capped grid must still scroll", b.icur.idx)
+	}
+	if !strings.Contains(h.view(), "U+") {
+		t.Error("detail line should describe the highlighted emoji")
+	}
+}
+
+func TestEmojiGridSizeIsConfigurable(t *testing.T) {
+	h := newHarness(t, "emoji", func(c *config.Config) { c.EmojiColumns, c.EmojiRows = 0, 0 }) // fill the window
+	h.send(tea.WindowSizeMsg{Width: 200, Height: 60})
+	if got := glyphRows(h); got < 30 {
+		t.Errorf("0/0 should fill the window, drew only %d rows", got)
+	}
+	h2 := newHarness(t, "emoji", func(c *config.Config) { c.EmojiColumns, c.EmojiRows = 10, 3 })
+	h2.send(tea.WindowSizeMsg{Width: 200, Height: 60})
+	if h2.model().emo.cols != 10 || glyphRows(h2) != 3 {
+		t.Errorf("want 10 columns x 3 rows, got %d x %d", h2.model().emo.cols, glyphRows(h2))
+	}
+}

@@ -120,6 +120,10 @@ func New(d Deps, startTab string) tea.Model {
 	default:
 		m.tab = tabClipboard
 	}
+	// A terminal must rasterize every distinct emoji the first time it is drawn,
+	// which is slow for hundreds of colour glyphs at once. Showing a bounded
+	// window of the grid keeps the first paint of a tab or category instant.
+	m.emo.maxCol, m.emo.maxRows = cfg.EmojiColumns, cfg.EmojiRows
 	m.typing = m.searchOnOpen(m.tab)
 	m.reloadClip(true)
 	return m

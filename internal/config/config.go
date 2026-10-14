@@ -50,6 +50,8 @@ type Config struct {
 	SearchOnOpen      []string          `json:"searchOnOpen"` // tabs whose search box starts focused
 	ImagePreview      string            `json:"imagePreview"` // auto | sixel | basic | off
 	SimpleEmoji       bool              `json:"simpleEmoji"`  // hide joined (ZWJ) emoji sequences
+	EmojiColumns      int               `json:"emojiColumns"` // max emoji per grid row (0 = fill the window)
+	EmojiRows         int               `json:"emojiRows"`    // max emoji grid rows shown at once (0 = fill the window)
 
 	// Dir is the resolved config directory (not serialised).
 	Dir string `json:"-"`
@@ -72,6 +74,8 @@ func Default() Config {
 		DefaultTab:        "clipboard",
 		SearchOnOpen:      []string{"emoji"},
 		ImagePreview:      "auto",
+		EmojiColumns:      16,
+		EmojiRows:         16,
 	}
 }
 
@@ -215,6 +219,8 @@ func resolve(cfg Config) Config {
 	default:
 		cfg.ImagePreview = "auto"
 	}
+	cfg.EmojiColumns = max(cfg.EmojiColumns, 0)
+	cfg.EmojiRows = max(cfg.EmojiRows, 0)
 	for i, t := range cfg.SearchOnOpen {
 		cfg.SearchOnOpen[i] = strings.ToLower(strings.TrimSpace(t))
 	}
