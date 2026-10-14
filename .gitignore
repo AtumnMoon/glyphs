@@ -24,3 +24,7 @@ profile.cov
 
 # Dictionary
 .harper-dictionary.txt
+
+# Scripts
+*.*sh
+*.ps
