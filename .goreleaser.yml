@@ -53,8 +53,10 @@ changelog:
   use: github
   sort: asc
   filters:
-    exclude:
-      - '^(?!feat|fix|refactor)'
+    include:
+      - "^feat:"
+      - "^fix:"
+      - "^refactor:"
   groups:
     - title: '🚀 Features'
       regexp: '^feat(\(.*\))??!?:'
