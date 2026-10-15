@@ -46,9 +46,6 @@ release:
     name: glyphs
   prerelease: auto
 
-  header: |
-    {{ .TagContents }}
-
 changelog:
   use: github
   sort: asc
