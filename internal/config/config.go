@@ -3,9 +3,9 @@
 // The clipboard history file and image folder are managed by package
 // clipboard inside Dir.
 //
-// The design follows clipse: a JSON file is created with defaults on first
-// run, any key missing from the file silently falls back to its default, and
-// path values may be absolute, "~"-prefixed, contain $ENV vars, or be relative
+// A JSON file is created with defaults on first run, any key missing
+// from the file silently falls back to its default, and path values
+// may be absolute, "~"-prefixed, contain $ENV vars, or be relative
 // to the config directory.
 package config
 
@@ -43,6 +43,7 @@ type Config struct {
 	MaxEntryLength    int               `json:"maxEntryLength"`
 	KeyBindings       map[string]string `json:"keyBindings"`
 	Theme             Theme             `json:"theme"`
+	UI                UI                `json:"ui"`
 	EnableMouse       bool              `json:"enableMouse"`
 	EnableDescription bool              `json:"enableDescription"`
 	QuitAfterCopy     bool              `json:"quitAfterCopy"`
@@ -68,6 +69,7 @@ func Default() Config {
 		MaxEntryLength:    65,
 		KeyBindings:       DefaultKeyBindings(),
 		Theme:             DefaultTheme(),
+		UI:                DefaultUI(),
 		EnableMouse:       true,
 		EnableDescription: true,
 		QuitAfterCopy:     true,
@@ -165,6 +167,7 @@ func LoadFrom(dir string) (Config, error) {
 		}
 		cfg.KeyBindings = mergeBindings(raw)
 		cfg.Theme = mergeTheme(raw)
+		cfg.UI = mergeUI(raw)
 	}
 
 	cfg.Dir = dir
@@ -199,7 +202,25 @@ func mergeTheme(raw []byte) Theme {
 	return out
 }
 
+// mergeUI overlays the user's ui block on the default strings. Unlike the
+// theme, a key that is present but empty is kept: it means "show nothing".
+func mergeUI(raw []byte) UI {
+	out := DefaultUI()
+	var probe struct {
+		UI json.RawMessage `json:"ui"`
+	}
+	if json.Unmarshal(raw, &probe) == nil && len(probe.UI) > 0 {
+		// Unmarshal over the defaults: absent keys stay, present keys win. A
+		// wrongly typed key makes the whole block fall back to the defaults.
+		if err := json.Unmarshal(probe.UI, &out); err != nil {
+			out = DefaultUI()
+		}
+	}
+	return out
+}
+
 func resolve(cfg Config) Config {
+	cfg.UI = cfg.UI.resolve()
 	cfg.LogFilePath = ResolvePath(cfg.LogFilePath, cfg.Dir)
 	if cfg.MaxHistory < 0 {
 		cfg.MaxHistory = 0

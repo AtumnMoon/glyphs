@@ -4,6 +4,7 @@ package ui
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +68,9 @@ type model struct {
 	help help.Model
 	st   styles
 
+	tabLabels []string // tab bar text, from ui.tabNames + ui.tabFormat
+	divW      int      // display width of ui.divider
+
 	width, height int
 	g             geom
 	helpKey       string // layout cache key for helpView
@@ -106,12 +110,14 @@ func New(d Deps, startTab string) tea.Model {
 		deps: d,
 		cfg:  cfg,
 		keys: newKeyMap(cfg),
-		help: help.New(),
-		st:   newStyles(cfg.Theme),
+		help: newHelp(cfg.Theme),
+		st:   newStyles(cfg.Theme, cfg.UI),
 		kao:  buildKaomoji(d.Kaomoji),
 		emo:  buildEmoji(d.Emoji, cfg.SimpleEmoji),
 		clip: newClipState(),
 	}
+	m.tabLabels = tabLabels(cfg.UI)
+	m.divW = ansi.StringWidth(cfg.UI.Divider)
 	switch strings.ToLower(startTab) {
 	case "emoji":
 		m.tab = tabEmoji
@@ -138,6 +144,20 @@ func (m *model) Init() tea.Cmd {
 		tea.Raw(ansi.RequestPrimaryDeviceAttributes),
 		tea.Raw(ansi.WindowOp(ansi.RequestCellSizeWinOp)),
 	)
+}
+
+// tabLabels renders the tab bar text of every tab from the configured names
+// and format ("{n} {name}" by default).
+func tabLabels(ui config.UI) []string {
+	out := make([]string, len(tabNames))
+	for i := range tabNames {
+		name := ui.TabNames[tabID(i).key()]
+		if name == "" {
+			name = tabNames[i]
+		}
+		out[i] = strings.NewReplacer("{n}", strconv.Itoa(i+1), "{name}", name).Replace(ui.TabFormat)
+	}
+	return out
 }
 
 func (m *model) searchOnOpen(t tabID) bool {

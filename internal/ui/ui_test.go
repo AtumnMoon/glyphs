@@ -414,7 +414,7 @@ func TestClipboardPinDeleteConfirm(t *testing.T) {
 	if !all[1].Pinned || all[1].Value != "keep me" {
 		t.Fatalf("pin failed: %+v", all)
 	}
-	if !strings.Contains(h.view(), "📌") {
+	if !strings.Contains(h.view(), "🖈") {
 		t.Error("pin marker not shown")
 	}
 
@@ -795,5 +795,125 @@ func TestEmojiGridSizeIsConfigurable(t *testing.T) {
 	h2.send(tea.WindowSizeMsg{Width: 200, Height: 60})
 	if h2.model().emo.cols != 10 || glyphRows(h2) != 3 {
 		t.Errorf("want 10 columns x 3 rows, got %d x %d", h2.model().emo.cols, glyphRows(h2))
+	}
+}
+
+// ---- configurable theme / text ---------------------------------------------
+
+func TestSelectedDescriptionColourIsConfigurable(t *testing.T) {
+	h := newHarness(t, "clipboard", func(c *config.Config) {
+		c.Theme.Selected = "#010203"
+		c.Theme.SelectedDesc = "#abcdef" // 171,205,239
+	})
+	seed(t, h, "one", "two")
+	raw := h.m.View().Content
+	if !strings.Contains(raw, "38;2;171;205;239") {
+		t.Errorf("selectedDesc colour not applied to the highlighted row's description")
+	}
+}
+
+func TestSelectedDescriptionInheritsSelected(t *testing.T) {
+	h := newHarness(t, "clipboard", func(c *config.Config) {
+		c.Theme.Selected = "#010203"
+		c.Theme.Text = "#fefefe" // the old (white) colour must no longer leak in
+	})
+	seed(t, h, "one")
+	raw := h.m.View().Content
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.Contains(line, "chars") && strings.Contains(line, "48;2;") { // highlighted desc line
+			if strings.Contains(line, "38;2;254;254;254") {
+				t.Errorf("description under the highlight still uses the text colour: %q", line)
+			}
+			if !strings.Contains(line, "38;2;1;2;3") {
+				t.Errorf("description under the highlight should inherit `selected`: %q", line)
+			}
+		}
+	}
+}
+
+func TestCustomPinMarkerKeepsRowsAligned(t *testing.T) {
+	h := newHarness(t, "clipboard", func(c *config.Config) { c.UI.PinMarker = "★" })
+	seed(t, h, "plain entry", "starred entry")
+	h.press("p") // pin the top entry ("starred entry")
+	v := h.view()
+	if strings.Contains(v, "📌") || !strings.Contains(v, "★") {
+		t.Fatalf("custom pin marker not used:\n%s", v)
+	}
+	col := func(s string) int {
+		for _, l := range strings.Split(v, "\n") {
+			if i := strings.Index(l, s); i >= 0 {
+				return ansi.StringWidth(l[:i])
+			}
+		}
+		return -1
+	}
+	if a, b := col("starred entry"), col("plain entry"); a < 0 || a != b {
+		t.Errorf("pinned and unpinned titles should start in the same column: %d vs %d", a, b)
+	}
+}
+
+func TestHiddenPinMarker(t *testing.T) {
+	h := newHarness(t, "clipboard", func(c *config.Config) { c.UI.PinMarker = ""; c.UI.SelectMarker = "" })
+	seed(t, h, "alpha")
+	h.press("p")
+	if v := h.view(); strings.Contains(v, "📌") || !strings.Contains(v, "alpha") {
+		t.Errorf("empty pinMarker should hide it:\n%s", v)
+	}
+}
+
+func TestSearchBarTextIsConfigurable(t *testing.T) {
+	h := newHarness(t, "clipboard", func(c *config.Config) {
+		c.UI.SearchIdle = "hit {key} to find"
+		c.UI.SearchPlaceholder = "start typing!"
+		c.UI.SearchPrompt = "> "
+		c.UI.SearchClearHint = " [esc]"
+		c.KeyBindings["filter"] = "f"
+	})
+	if v := h.view(); !strings.Contains(v, "hit f to find") {
+		t.Errorf("idle hint should use the configured text and filter key:\n%s", v)
+	}
+	h.press("f")
+	if v := h.view(); !strings.Contains(v, "> ") || !strings.Contains(v, "start typing!") {
+		t.Errorf("placeholder/prompt not configurable:\n%s", v)
+	}
+	h.typeText("a")
+	h.press("esc")
+	if v := h.view(); !strings.Contains(v, "[esc]") {
+		t.Errorf("clear hint not configurable:\n%s", v)
+	}
+}
+
+func TestTabLabelsAndHeadingsAreConfigurable(t *testing.T) {
+	h := newHarness(t, "kaomoji", func(c *config.Config) {
+		c.UI.TabFormat = "[{name}]"
+		c.UI.TabNames["kaomoji"] = "Faces"
+		c.UI.KaomojiHeading = "Sets"
+		c.UI.Divider = " | "
+		c.UI.WindowTitle = "Mine"
+	})
+	v := h.view()
+	for _, want := range []string{"[Clipboard]", "[Faces]", "[Emoji]", "Sets", " | "} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q:\n%s", want, v)
+		}
+	}
+	if h.m.View().WindowTitle != "Mine" {
+		t.Error("windowTitle not applied")
+	}
+}
+
+func TestEmptyDividerKeepsLayoutInsideTheWindow(t *testing.T) {
+	h := newHarness(t, "emoji", func(c *config.Config) { c.UI.Divider = "" })
+	for i, l := range strings.Split(h.view(), "\n") {
+		if w := ansi.StringWidth(l); w > 110 {
+			t.Errorf("line %d is %d cells wide in a 110-cell window", i, w)
+		}
+	}
+}
+
+func TestListenerBadgeTextIsConfigurable(t *testing.T) {
+	h := newHarness(t, "clipboard", func(c *config.Config) { c.UI.BadgeOff = "zzz" })
+	if v := h.view(); !strings.Contains(v, "zzz") {
+		t.Errorf("badge text not configurable:\n%s", v)
 	}
 }

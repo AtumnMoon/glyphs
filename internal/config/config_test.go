@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -81,6 +82,93 @@ func TestResolvePath(t *testing.T) {
 	for in, want := range cases {
 		if got := ResolvePath(in, base); got != want {
 			t.Errorf("ResolvePath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestThemeOptionalColoursInherit(t *testing.T) {
+	th := DefaultTheme()
+	th.Selected = "#111111"
+	th.Muted = "#222222"
+	r := th.Resolve()
+	if r.SelectedDesc != "#111111" || r.SelectedPin != "#111111" {
+		t.Errorf("selected* should inherit selected: %+v", r)
+	}
+	if r.Placeholder != "#222222" || r.Description != "#222222" {
+		t.Errorf("placeholder/description should inherit muted: %+v", r)
+	}
+	if r.HelpKey != "" {
+		t.Errorf("help colours must stay empty (library default), got %q", r.HelpKey)
+	}
+}
+
+func TestThemeOptionalColoursOverride(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"theme": {"selectedDesc": "#abcdef", "placeholder": " #123456 ", "helpKey": "#fff"}}`
+	if err := os.WriteFile(filepath.Join(dir, FileName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := cfg.Theme.Resolve()
+	if r.SelectedDesc != "#abcdef" || r.Placeholder != "#123456" || r.HelpKey != "#fff" {
+		t.Errorf("overrides lost: %+v", r)
+	}
+	if r.SelectedPin != DefaultTheme().Selected {
+		t.Errorf("untouched key should still inherit, got %q", r.SelectedPin)
+	}
+}
+
+func TestUIDefaultsAndPartialOverride(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"ui": {"pinMarker": "", "selectMarker": "*", "searchPlaceholder": "find…",
+		"tabNames": {"Emoji": "Faces", "bogus": "x", "kaomoji": "  "}, "boldSelected": false}}`
+	if err := os.WriteFile(filepath.Join(dir, FileName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, d := cfg.UI, DefaultUI()
+	if u.PinMarker != "" {
+		t.Errorf("an explicitly empty pinMarker must hide the marker, got %q", u.PinMarker)
+	}
+	if u.SelectMarker != "*" || u.SearchPlaceholder != "find…" || u.BoldSelected {
+		t.Errorf("overrides lost: %+v", u)
+	}
+	if u.SearchIdle != d.SearchIdle || u.Divider != d.Divider || !u.BoldActiveTab {
+		t.Errorf("unspecified keys should keep defaults: %+v", u)
+	}
+	if u.TabNames["emoji"] != "Faces" || u.TabNames["kaomoji"] != "Kaomoji" || u.TabNames["clipboard"] != "Clipboard" {
+		t.Errorf("tabNames merge wrong: %v", u.TabNames)
+	}
+	if _, ok := u.TabNames["bogus"]; ok {
+		t.Error("unknown tab names should be dropped")
+	}
+}
+
+func TestUIStringsAreSingleLine(t *testing.T) {
+	u := UI{TabFormat: "  ", HistoryTitle: "", SearchIdle: "a\nb"}.resolve()
+	if u.TabFormat != DefaultUI().TabFormat || u.HistoryTitle != "History" {
+		t.Errorf("blank tabFormat/historyTitle should fall back: %+v", u)
+	}
+	if u.SearchIdle != "a b" {
+		t.Errorf("newlines should be flattened, got %q", u.SearchIdle)
+	}
+}
+
+func TestFirstRunWritesNewKeys(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "glyphs")
+	if _, err := LoadFrom(dir); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, FileName))
+	for _, want := range []string{`"selectedDesc"`, `"placeholder"`, `"pinMarker"`, `"searchPlaceholder"`, `"tabFormat"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("default config.json is missing %s", want)
 		}
 	}
 }

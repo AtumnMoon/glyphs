@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +15,6 @@ const (
 	tabBarH  = 1
 	searchH  = 1
 	bottomH  = 2 // detail line + status line
-	dividerW = 3 // " │ "
 	minBodyH = 3
 )
 
@@ -51,7 +51,7 @@ func (m *model) layout() {
 	switch m.tab {
 	case tabKaomoji, tabEmoji:
 		g.leftW = clamp(w*22/100, 14, 26)
-		g.rightW = max(w-g.leftW-dividerW, 4)
+		g.rightW = max(w-g.leftW-m.divW, 4)
 		b := m.browser()
 		cell := min(max(b.cellW, 2), g.rightW)
 		b.cols = max(g.rightW/cell, 1)
@@ -97,7 +97,7 @@ func (m *model) previewRows() int { return max(m.g.bodyH-2, 1) }
 
 func (m *model) View() tea.View {
 	v := tea.NewView("")
-	v.WindowTitle = "Glyphs"
+	v.WindowTitle = m.cfg.UI.WindowTitle
 	v.AltScreen = true
 	if m.cfg.EnableMouse {
 		v.MouseMode = tea.MouseModeCellMotion
@@ -147,13 +147,13 @@ func (m *model) viewTabs() string {
 	n := len(tabNames)
 	var parts []string
 	used := 0
-	for i, name := range tabNames {
+	for i := range tabNames {
 		w := m.width / n
 		if i == n-1 {
 			w = m.width - used
 		}
 		used += w
-		label := fmt.Sprintf("%d %s", i+1, name)
+		label := m.tabLabels[i]
 		pad := max(w-ansi.StringWidth(label), 0)
 		cell := strings.Repeat(" ", pad/2) + label + strings.Repeat(" ", pad-pad/2)
 		if tabID(i) == m.tab {
@@ -167,16 +167,28 @@ func (m *model) viewTabs() string {
 
 // viewSearch is the always-visible search bar.
 func (m *model) viewSearch() string {
-	prompt := m.st.prompt.Render("/ ")
+	ui := m.cfg.UI
+	prompt := m.st.prompt.Render(ui.SearchPrompt)
+	cursor := m.st.filterCursor.Render(ui.SearchCursor)
 	switch {
 	case m.typing && m.query == "":
-		return prompt + m.st.prompt.Render("▏") + m.st.muted.Render("type to search…")
+		return prompt + cursor + m.st.placeholder.Render(ui.SearchPlaceholder)
 	case m.typing:
-		return prompt + m.st.text.Render(m.query) + m.st.prompt.Render("▏")
+		return prompt + m.st.filterText.Render(m.query) + cursor
 	case m.query != "":
-		return prompt + m.st.text.Render(m.query) + m.st.muted.Render("   (esc clears)")
+		return prompt + m.st.filterText.Render(m.query) + m.st.filterHint.Render(ui.SearchClearHint)
 	}
-	return m.st.muted.Render("press '/' for filter")
+	return m.st.placeholder.Render(m.searchIdle())
+}
+
+// searchIdle is the hint shown while the search box is not in use, with {key}
+// replaced by the first key bound to "filter".
+func (m *model) searchIdle() string {
+	k := "/"
+	if keys := m.cfg.Keys("filter"); len(keys) > 0 {
+		k = keys[0]
+	}
+	return strings.ReplaceAll(m.cfg.UI.SearchIdle, "{key}", k)
 }
 
 // ---- picker tabs ---------------------------------------------------------------
@@ -191,9 +203,9 @@ func (m *model) viewBrowser(b *browser) []string {
 	if !groupFocus {
 		titleStyle = m.st.paneTitleDim
 	}
-	heading := "Categories"
+	heading := m.cfg.UI.KaomojiHeading
 	if m.tab == tabEmoji {
-		heading = "Groups"
+		heading = m.cfg.UI.EmojiHeading
 	}
 	left = append(left, titleStyle.Render(fit(heading, g.leftW)))
 	for vi := b.gcur.off; vi < len(b.vis) && len(left) < g.bodyH; vi++ {
@@ -225,7 +237,7 @@ func (m *model) viewBrowser(b *browser) []string {
 	right = append(right, rt.Render(fit(head, g.rightW)))
 
 	if len(b.shown) == 0 {
-		right = append(right, m.st.muted.Render(fit("  Nothing matches.", g.rightW)))
+		right = append(right, m.st.muted.Render(fit("  "+m.cfg.UI.NoMatches, g.rightW)))
 	}
 	cell := min(max(b.cellW, 2), g.rightW)
 	cols := b.cols0()
@@ -279,7 +291,7 @@ func (m *model) gridRow(b *browser, row, cols, cell, rightW int, groupFocus bool
 // joinPanes zips two panes line by line around a divider, padding each to its
 // width and the block to height h.
 func (m *model) joinPanes(left, right []string, lw, rw, h int) []string {
-	div := m.st.divider.Render(" │ ")
+	div := m.st.divider.Render(m.cfg.UI.Divider)
 	out := make([]string, 0, h)
 	for i := range h {
 		l, r := strings.Repeat(" ", lw), ""
@@ -314,34 +326,49 @@ func padLines(lines []string, h int) []string {
 func (m *model) listenerBadge() string {
 	switch {
 	case m.deps.Paused != nil && m.deps.Paused():
-		return m.st.pin.Render("⏸ paused")
+		return m.st.badgePaused.Render(m.cfg.UI.BadgePaused)
 	case m.deps.ListenerRunning != nil && m.deps.ListenerRunning():
-		return m.st.status.Render("● listening")
+		return m.st.badgeOn.Render(m.cfg.UI.BadgeListening)
 	}
-	return m.st.muted.Render("○ listener off")
+	return m.st.badgeOff.Render(m.cfg.UI.BadgeOff)
 }
 
 func (m *model) viewClipList(w int) []string {
-	g, c := m.g, m.clip
-	head := fmt.Sprintf("History — %d", len(c.view))
+	g, c, ui := m.g, m.clip, m.cfg.UI
+	head := fmt.Sprintf("%s — %d", ui.HistoryTitle, len(c.view))
 	if c.pinnedOnly {
-		head += " · pinned only"
+		head += ui.PinnedOnly
 	}
 	if n := len(c.selected); n > 0 {
-		head += fmt.Sprintf(" · %d selected", n)
+		head += strings.ReplaceAll(ui.SelectedLabel, "{count}", strconv.Itoa(n))
 	}
-	badge := m.listenerBadge()
-	hw := w - ansi.StringWidth(badge) - 1
-	lines := []string{m.st.paneTitle.Render(fit(head, hw)) + " " + badge}
+	var lines []string
+	if badge := m.listenerBadge(); ansi.StringWidth(badge) > 0 {
+		hw := w - ansi.StringWidth(badge) - 1
+		lines = []string{m.st.paneTitle.Render(fit(head, hw)) + " " + badge}
+	} else {
+		lines = []string{m.st.paneTitle.Render(fit(head, w))}
+	}
 
 	if len(c.view) == 0 {
-		msg := "History is empty. Run `glyphs -listen` to start recording."
+		msg := ui.EmptyHistory
 		if c.pinnedOnly {
-			msg = "No pinned entries."
+			msg = ui.EmptyPinned
 		} else if strings.TrimSpace(m.query) != "" {
-			msg = "Nothing matches."
+			msg = ui.NoMatches
 		}
 		return append(lines, m.st.muted.Render(fit("  "+msg, w)))
+	}
+
+	// Marker columns are as wide as their marker (so rows line up whether or
+	// not an entry is pinned/selected); a hidden marker takes no room at all.
+	selW, pinW := ansi.StringWidth(ui.SelectMarker), ansi.StringWidth(ui.PinMarker)
+	prefixW := selW + pinW
+	if selW > 0 {
+		prefixW++
+	}
+	if pinW > 0 {
+		prefixW++
 	}
 
 	for vi := c.cur.off; vi < len(c.view) && len(lines) < g.bodyH; vi++ {
@@ -352,30 +379,33 @@ func (m *model) viewClipList(w int) []string {
 			rowSt = m.st.rowSel
 		}
 
-		sel, pin := " ", " "
-		if c.selected[entryKey(e)] {
-			sel = "✓"
-		}
-		if e.Pinned {
-			pin = "📌"
-		}
-		mark := func(glyph string, st lipgloss.Style) string {
-			if isCur {
-				return rowSt.Render(glyph)
+		mark := func(on bool, glyph string, width int, st, selSt lipgloss.Style) string {
+			if width == 0 {
+				return ""
 			}
-			return st.Render(glyph)
+			if !on {
+				glyph = strings.Repeat(" ", width)
+			}
+			switch {
+			case isCur:
+				return selSt.Render(glyph) + rowSt.Render(" ")
+			case on:
+				return st.Render(glyph) + rowSt.Render(" ")
+			}
+			return rowSt.Render(glyph + " ")
 		}
-		prefix := mark(sel, m.st.multi) + rowSt.Render(" ") + mark(pin, m.st.pin) + rowSt.Render(" ")
-		textW := w - 4
+		prefix := mark(c.selected[entryKey(e)], ui.SelectMarker, selW, m.st.multi, m.st.selMulti) +
+			mark(e.Pinned, ui.PinMarker, pinW, m.st.pin, m.st.selPin)
+		textW := max(w-prefixW, 0)
 		titleW := min(m.cfg.MaxEntryLength, textW)
 		lines = append(lines, prefix+rowSt.Render(fit(entryTitle(e), titleW)+strings.Repeat(" ", max(textW-titleW, 0))))
 
 		if g.rowsPerItem == 2 && len(lines) < g.bodyH {
-			d := m.st.muted
+			d := m.st.desc
 			if isCur {
-				d = m.st.rowSelDim
+				d = m.st.rowSelDesc
 			}
-			lines = append(lines, d.Render(fit("    "+entryDesc(e), w)))
+			lines = append(lines, d.Render(fit(strings.Repeat(" ", prefixW)+entryDesc(e), w)))
 		}
 	}
 	return lines
@@ -394,7 +424,7 @@ func (m *model) viewPreview() []string {
 	e := m.previewEntry()
 	c := m.clip
 
-	header := "Preview"
+	header := m.cfg.UI.PreviewTitle
 	lines := make([]string, 0, m.g.bodyH)
 	var footerLeft, footerRight string
 
@@ -461,7 +491,7 @@ func (m *model) viewDetail() string {
 		} else {
 			s = fmt.Sprintf("%s  ·  %d chars", it.label, len([]rune(it.text)))
 		}
-		return m.st.muted.Render(fit(s, m.width))
+		return m.st.detail.Render(fit(s, m.width))
 	}
 	return ""
 }
