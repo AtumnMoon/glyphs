@@ -172,3 +172,22 @@ func TestFirstRunWritesNewKeys(t *testing.T) {
 		}
 	}
 }
+
+// A user's "Emoji" must beat the default "emoji" every time, not just when
+// Go's random map order happens to visit it last.
+func TestTabNamesOverrideIsDeterministic(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"ui": {"tabNames": {"Emoji": "Faces", "clipboard": "Paste"}}}`
+	if err := os.WriteFile(filepath.Join(dir, FileName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range 300 {
+		cfg, err := LoadFrom(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := cfg.UI.TabNames; n["emoji"] != "Faces" || n["clipboard"] != "Paste" || n["kaomoji"] != "Kaomoji" {
+			t.Fatalf("tabNames = %v", n)
+		}
+	}
+}

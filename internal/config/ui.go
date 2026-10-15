@@ -1,6 +1,7 @@
 package config
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -121,9 +122,16 @@ func (u UI) resolve() UI {
 	}
 	// Tab names: start from the defaults, accept non-blank overrides for known
 	// tabs only (case-insensitive keys).
+	// Keys are visited in sorted order so the result is deterministic even if
+	// the user wrote the same tab twice ("Emoji" and "emoji").
 	names := DefaultUI().TabNames
-	for k, v := range u.TabNames {
-		k = strings.ToLower(strings.TrimSpace(k))
+	keys := make([]string, 0, len(u.TabNames))
+	for k := range u.TabNames {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, rawKey := range keys {
+		k, v := strings.ToLower(strings.TrimSpace(rawKey)), u.TabNames[rawKey]
 		if _, known := names[k]; known && strings.TrimSpace(v) != "" {
 			names[k] = oneLineText(strings.TrimSpace(v))
 		}

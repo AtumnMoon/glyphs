@@ -206,6 +206,11 @@ func mergeTheme(raw []byte) Theme {
 // theme, a key that is present but empty is kept: it means "show nothing".
 func mergeUI(raw []byte) UI {
 	out := DefaultUI()
+	// Decode tabNames into an empty map so it holds only the user's keys;
+	// resolve overlays them on the defaults. (Decoding into the default map
+	// would leave "emoji" next to a user's "Emoji", and which one won would
+	// depend on map iteration order.)
+	out.TabNames = nil
 	var probe struct {
 		UI json.RawMessage `json:"ui"`
 	}
@@ -215,6 +220,9 @@ func mergeUI(raw []byte) UI {
 		if err := json.Unmarshal(probe.UI, &out); err != nil {
 			out = DefaultUI()
 		}
+	}
+	if out.TabNames == nil {
+		out.TabNames = DefaultUI().TabNames
 	}
 	return out
 }
