@@ -361,6 +361,12 @@ func (m *model) pinEntry(key string, pin bool) error {
 }
 
 func (m *model) deleteKeys(keys []string) {
+	gone := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		gone[k] = true
+	}
+	// Keep the cursor where it was (on the next item) instead of jumping to the top.
+	m.clip.landKey = m.clip.survivorAfter(gone)
 	for _, k := range keys {
 		i, err := m.fileIndex(k)
 		if err != nil {
@@ -368,6 +374,7 @@ func (m *model) deleteKeys(keys []string) {
 		}
 		if err := m.deps.History.Delete(i); err != nil {
 			m.setStatus("delete: "+err.Error(), true)
+			m.clip.landKey = ""
 			return
 		}
 		delete(m.clip.selected, k)

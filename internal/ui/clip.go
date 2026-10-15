@@ -37,6 +37,7 @@ type clipState struct {
 	imgCache   map[string]string
 	wrapKey    string   // cache key of wrapped
 	wrapped    []string // text preview lines for wrapKey
+	landKey    string   // entry to highlight after the next reload (set by deletes)
 }
 
 func newClipState() *clipState {
@@ -53,8 +54,35 @@ func (c *clipState) apply(query string) {
 // captured first: c.view holds indexes into the *old* slice.
 func (c *clipState) setEntries(entries []clipboard.ClipboardEntry, query string) {
 	keep := c.currentKey()
+	if c.landKey != "" {
+		keep, c.landKey = c.landKey, ""
+	}
 	c.entries = entries
 	c.rebuild(query, keep)
+}
+
+// survivorAfter picks the entry the cursor should land on once the entries in
+// gone are deleted, like clipse: the next surviving item below the cursor, or
+// the closest one above when the cursor was at the end of the list.
+func (c *clipState) survivorAfter(gone map[string]bool) string {
+	pick := func(i int) (string, bool) {
+		if i < 0 || i >= len(c.view) || c.view[i] >= len(c.entries) {
+			return "", false
+		}
+		k := entryKey(c.entries[c.view[i]])
+		return k, !gone[k]
+	}
+	for i := c.cur.idx; i < len(c.view); i++ {
+		if k, ok := pick(i); ok {
+			return k
+		}
+	}
+	for i := c.cur.idx - 1; i >= 0; i-- {
+		if k, ok := pick(i); ok {
+			return k
+		}
+	}
+	return ""
 }
 
 func (c *clipState) currentKey() string {

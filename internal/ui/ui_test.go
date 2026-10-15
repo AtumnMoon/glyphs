@@ -728,6 +728,23 @@ func TestXDeletesInClipboardTab(t *testing.T) {
 	}
 }
 
+func TestDeleteMovesSelectionToNextItem(t *testing.T) {
+	h := newHarness(t, "clipboard", nil)
+	seed(t, h, "a", "b", "c", "d") // list is newest first: d c b a
+	h.press("down")                // on "c"
+	h.press("x")
+	cur, ok := h.model().clip.current()
+	if !ok || cur.Value != "b" {
+		t.Fatalf("after deleting c the selection should be b, got %+v", cur)
+	}
+	h.press("down") // on "a", the last item
+	h.press("x")
+	cur, ok = h.model().clip.current()
+	if !ok || cur.Value != "b" {
+		t.Fatalf("deleting the last item should select the previous one (b), got %+v", cur)
+	}
+}
+
 func TestSimpleEmojiHidesJoinedSequencesAndOtherIsLast(t *testing.T) {
 	full := newHarness(t, "emoji", nil).model().emo
 	simple := newHarness(t, "emoji", func(c *config.Config) { c.SimpleEmoji = true }).model().emo
