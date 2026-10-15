@@ -82,7 +82,71 @@ is created on first run. Missing keys fall back to defaults.
 | `enableMouse` | `true` | Wheel scrolling, click tabs |
 | `logFile` | `glyphs.log` | Listener log; absolute, `~`, `$VAR`, or relative to the config dir |
 | `keyBindings` | | Action → comma-separated keys, e.g. `"quit": "q,esc"` |
-| `theme` | purple/pink | Hex colours: `accent`, `selected`, `pin`, ... |
+| `theme` | green | Colours, see [Theme](#theme) |
+| `ui` | | Text, markers and small layout switches, see [UI text and markers](#ui-text-and-markers) |
+
+### Theme
+
+Every colour is a hex string (or ANSI number) under `theme`. Set only what you
+want to change. Optional keys left empty inherit the colour named below, so
+changing `selected` or `muted` alone keeps everything coherent.
+
+| Key | Meaning | Inherits |
+| --- | --- | --- |
+| `accent`, `accentFg` | Active tab background / text, pane titles, divider | |
+| `inactiveTabFg`, `inactiveTabBg` | Inactive tabs | |
+| `text`, `muted` | Primary / secondary text | |
+| `selected`, `selectedBg` | Highlighted row text / background | |
+| `selectedDesc` | The second line (time, size) under the highlighted row | `selected` |
+| `selectedPin`, `selectedMulti` | Pin / select marker on the highlighted row | `selected` |
+| `selectedDim`, `selectedDimBg` | Highlighted row while its pane is not focused | `text`, `selectedBg` |
+| `pin`, `multi` | Pin / multi-select marker on other rows | |
+| `status`, `error` | Status line, errors and delete prompt | |
+| `filterPrompt` | The search prompt | |
+| `filterText`, `filterCursor`, `filterHint` | Typed query, caret, "(esc clears)" | `text`, `filterPrompt`, `muted` |
+| `placeholder` | Search placeholder and idle hint | `muted` |
+| `description` | Second line of other rows | `muted` |
+| `detail` | Detail line under the emoji/kaomoji grid | `muted` |
+| `divider`, `paneTitle`, `paneTitleDim` | Pane divider and headings | `accent`, `accent`, `muted` |
+| `badgeListening`, `badgePaused`, `badgeOff` | Listener badge | `status`, `pin`, `muted` |
+| `helpKey`, `helpDesc`, `helpSeparator` | Help bar (empty = built-in grey) | |
+
+Light highlight colour? Set `selected` (title) and `selectedDesc` (second line)
+to something dark, e.g. `"selectedDesc": "#2D3B2B"`.
+
+### UI text and markers
+
+Everything under `ui` is optional. A key set to `""` is honoured where it makes
+sense (`"pinMarker": ""` hides the marker, `"searchPlaceholder": ""` shows none).
+Rows stay aligned whatever marker width you pick.
+
+| Key | Default |
+| --- | --- |
+| `pinMarker` / `selectMarker` | `🖈` / `✓` |
+| `searchPrompt` / `searchCursor` | `"❯ "` / `▏` |
+| `searchPlaceholder` | `type to search…` (search box focused, nothing typed) |
+| `searchIdle` | `press '{key}' for filter` (`{key}` = your `filter` binding) |
+| `searchClearHint` | `   (esc clears)` |
+| `tabNames` | `{"clipboard": "Clipboard", "kaomoji": "Kaomoji", "emoji": "Emoji"}` |
+| `tabFormat` | `{n} {name}` (e.g. `"{name}"` to drop the numbers) |
+| `kaomojiHeading` / `emojiHeading` | `Categories` / `Groups` |
+| `historyTitle` / `previewTitle` | `History` / `Preview` |
+| `pinnedOnly` / `selectedLabel` | ` · pinned only` / ` · {count} selected` |
+| `divider` | `" │ "` |
+| `badgeListening` / `badgePaused` / `badgeOff` | `● listening` / `⏸ paused` / `○ listener off` |
+| `emptyHistory` / `emptyPinned` / `noMatches` | empty-state messages |
+| `windowTitle` | `Glyphs` |
+| `boldSelected` / `boldActiveTab` | `true` / `true` |
+
+Example:
+
+```json
+{
+    "theme": { "selected": "#090C09", "selectedBg": "#7A9B76", "selectedDesc": "#2D3B2B",
+               "placeholder": "#7A9B76", "helpKey": "#7A9B76" },
+    "ui": { "pinMarker": "🖈", "searchIdle": "/ to search", "tabFormat": "{name}" }
+}
+```
 
 The clipboard history (`clipboard_history.json`, `tmp_files/`) lives in the
 config directory and is handled by `internal/clipboard`, on top of
