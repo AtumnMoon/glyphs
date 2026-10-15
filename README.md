@@ -43,20 +43,20 @@ All rebindable (press `?` in the app).
 
 ## CLI
 
-```
-glyphs -listen            start background listener (replaces a running one)
-glyphs -listen-shell      run the listener in the foreground (debugging)
-glyphs -kill              stop the listener
-glyphs -pause 5m          pause recording (30s, 5m, 1h ...); -pause off resumes
-glyphs -a <text>          add to history without copying (or pipe stdin)
-glyphs -c <text>          copy to the system clipboard (or pipe stdin)
-glyphs -p                 print current clipboard text
-glyphs -output-all raw    print all text entries, one per line (newlines escaped)
-glyphs -output-all unescaped   same, entries verbatim
-glyphs -clear             remove everything except pinned entries
+```sh
+glyphs -listen                 # start background listener (replaces a running one)
+glyphs -listen-shell           # run the listener in the foreground (debugging)
+glyphs -kill                   # stop the listener
+glyphs -pause 5m               # pause recording (30s, 5m, 1h ...); -pause off resumes
+glyphs -a <text>               # add to history without copying (or pipe stdin)
+glyphs -c <text>               # copy to the system clipboard (or pipe stdin)
+glyphs -p                      # print current clipboard text
+glyphs -output-all raw         # print all text entries, one per line (newlines escaped)
+glyphs -output-all unescaped   # same, entries verbatim
+glyphs -clear                  # remove everything except pinned entries
 glyphs -clear-all | -clear-images | -clear-text
-glyphs -keep              open the TUI and stay open after copying
-glyphs -clean             sanitise text, drop orphaned images/entries
+glyphs -keep                   # open the TUI and stay open after copying
+glyphs -clean                  # sanitise text, drop orphaned images/entries
 glyphs -v | -help
 ```
 
