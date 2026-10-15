@@ -1,3 +1,7 @@
+# Patch files
+patch/
+*.patch
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
