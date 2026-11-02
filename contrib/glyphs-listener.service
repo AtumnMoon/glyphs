@@ -1,0 +1,31 @@
+# systemd user unit that keeps the glyphs clipboard listener running.
+#
+# Install (per user):
+#   mkdir -p ~/.config/systemd/user
+#   cp contrib/glyphs-listener.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now glyphs-listener.service
+#
+# Packagers can install it to /usr/lib/systemd/user/ instead.
+#
+# The listener must run with --foreground. Plain `glyphs listen` detaches a
+# child and exits, and systemd then stops the service and kills the child
+# (it is still in the service's control group).
+
+[Unit]
+Description=Clipboard Manager for Linux
+PartOf=graphical-session.target
+After=graphical-session.target
+Requisite=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/glyphs listen --foreground
+Restart=on-failure
+# 78 (EX_CONFIG) means config.toml is invalid. The listener refuses to start
+# rather than run with defaults that would drop your excluded_patterns, and
+# restarting cannot fix that. Fix the file, then `systemctl --user restart`.
+RestartPreventExitStatus=78
+
+[Install]
+WantedBy=graphical-session.target

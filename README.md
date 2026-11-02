@@ -64,6 +64,24 @@ glyphs --keep                  # open the TUI and stay open after copying
 glyphs --version
 ```
 
+### Running the listener under systemd
+
+Use the unit in [`contrib/glyphs-listener.service`](contrib/glyphs-listener.service):
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp contrib/glyphs-listener.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now glyphs-listener.service
+```
+
+It runs `glyphs listen --foreground`. Do not point a unit at plain
+`glyphs listen`: that command starts a detached child and exits, so systemd
+sees the service finish and kills the child with the rest of the service's
+control group, which leaves the TUI showing "listener off". Any other
+supervisor that tracks the process it starts (runit, s6, ...) needs
+`--foreground` for the same reason.
+
 ## Configuration
 
 `~/.config/glyphs/config.json` (or `$XDG_CONFIG_HOME`, or `$GLYPHS_CONFIG_DIR`)
