@@ -1,3 +1,7 @@
+# Generated at release time (see .goreleaser.yml)
+/manpages/
+/completions/
+
 # Patch files
 patch/
 *.patch

@@ -12,6 +12,9 @@ import (
 	"github.com/AtumnMoon/glyphs/internal/config"
 )
 
+// ExitConfig is the exit status for an invalid configuration (EX_CONFIG).
+const ExitConfig = 78
+
 func fail(err error) int {
 	fmt.Fprintln(os.Stderr, "error:", err)
 	return 1

@@ -19,7 +19,7 @@ import (
 // Clipse avoids this with a long-lived process with that as example.
 //
 // Glyphs does the same by handing every copy to a tiny detached
-// "holder" (glyphs -hold <fmt>) that owns the selection until
+// "holder" (glyphs hold <fmt>) that owns the selection until
 // something else is copied. macOS and Windows keep clipboard
 // data in the OS, so they write directly.
 
@@ -55,7 +55,7 @@ func persist(format string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(exe, "-hold", format)
+	cmd := exec.Command(exe, "hold", format)
 	cmd.Stdin = bytes.NewReader(data)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -86,7 +86,7 @@ func persist(format string, data []byte) error {
 	}
 }
 
-// RunHolder is the body of `glyphs -hold <text|image>`: read the payload from
+// RunHolder is the body of `glyphs hold <text|image>`: read the payload from
 // stdin, take ownership of the clipboard, and stay alive until it is replaced.
 func RunHolder(format string) int {
 	f, ok := formatOf(format)

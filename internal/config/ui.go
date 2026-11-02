@@ -87,7 +87,7 @@ func DefaultUI() UI {
 		BadgeListening: "● listening",
 		BadgePaused:    "⏸ paused",
 		BadgeOff:       "○ listener off",
-		EmptyHistory:   "History is empty. Run `glyphs -listen` to start recording.",
+		EmptyHistory:   "History is empty. Run `glyphs listen` to start recording.",
 		EmptyPinned:    "No pinned entries.",
 		NoMatches:      "Nothing matches.",
 		BoldSelected:   true,

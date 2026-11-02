@@ -68,7 +68,7 @@ func LaunchListener(cfg config.Config) int {
 	}
 	defer logf.Close()
 
-	cmd := exec.Command(exe, "-listen-shell")
+	cmd := exec.Command(exe, "listen", "--foreground")
 	cmd.Stdout, cmd.Stderr = logf, logf
 	detach(cmd)
 	if err := cmd.Start(); err != nil {

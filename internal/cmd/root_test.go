@@ -1,43 +1,114 @@
 package cmd
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/AtumnMoon/glyphs/internal/config"
 )
 
-func testConfig(t *testing.T) config.Config {
+// run executes the CLI against a throw-away config dir.
+func run(t *testing.T, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
-	cfg := config.Default()
-	cfg.Dir = t.TempDir()
-	return cfg
+	t.Setenv("GLYPHS_CONFIG_DIR", t.TempDir())
+	var out, errb bytes.Buffer
+	code = Execute(args, &out, &errb)
+	return code, out.String(), errb.String()
 }
 
-func TestHandlePause(t *testing.T) {
-	cfg := testConfig(t)
-	if rc := handlePause(cfg, "5m"); rc != 0 {
-		t.Errorf("valid duration rc=%d", rc)
-	}
-	if rc := handlePause(cfg, "off"); rc != 0 {
-		t.Errorf("off rc=%d", rc)
-	}
-	if rc := handlePause(cfg, "resume"); rc != 0 {
-		t.Errorf("resume rc=%d", rc)
+func TestPause(t *testing.T) {
+	for _, ok := range [][]string{{"pause", "5m"}, {"pause", "off"}, {"pause", "resume"}, {"pause", "90"}} {
+		if code, _, se := run(t, ok...); code != 0 {
+			t.Errorf("%v: code %d, stderr %q", ok, code, se)
+		}
 	}
 	for _, bad := range []string{"abc", "-5m", "0"} {
-		if rc := handlePause(cfg, bad); rc != 1 {
-			t.Errorf("handlePause(%q) rc=%d, want 1", bad, rc)
+		// "-5m" must be treated as a value, not a flag.
+		if code, _, _ := run(t, "pause", "--", bad); code != exitFail {
+			t.Errorf("pause %q: code %d, want %d", bad, code, exitFail)
+		}
+	}
+	if code, _, _ := run(t, "pause"); code != exitUsage {
+		t.Errorf("pause without argument: code %d, want %d", code, exitUsage)
+	}
+}
+
+func TestVersion(t *testing.T) {
+	for _, flag := range []string{"--version", "-v"} {
+		code, out, _ := run(t, flag)
+		if code != 0 || !strings.Contains(out, version) {
+			t.Errorf("%s: code %d, output %q", flag, code, out)
 		}
 	}
 }
 
-func TestModifiersDoNotCountAsCommands(t *testing.T) {
-	for _, m := range []string{"tab", "keep"} {
-		if !modifiers[m] {
-			t.Errorf("%q should be a modifier flag", m)
+func TestUnknownCommandAndFlag(t *testing.T) {
+	if code, _, se := run(t, "frobnicate"); code != exitUsage || !strings.Contains(se, "frobnicate") {
+		t.Errorf("unknown command: code %d, stderr %q", code, se)
+	}
+	if code, _, _ := run(t, "--nope"); code != exitUsage {
+		t.Errorf("unknown flag: code %d", code)
+	}
+	if code, _, _ := run(t, "--tab", "bogus"); code != exitFail {
+		t.Errorf("unknown tab: code %d", code)
+	}
+}
+
+func TestClearFlagsAreExclusive(t *testing.T) {
+	if code, _, _ := run(t, "clear", "--all", "--text"); code != exitUsage {
+		t.Errorf("clear --all --text: code %d, want %d", code, exitUsage)
+	}
+	// (package app prints "removed N entries" straight to os.Stdout)
+	if code, _, se := run(t, "clear", "--images"); code != 0 {
+		t.Errorf("clear --images: code %d, err %q", code, se)
+	}
+}
+
+func TestHelpListsCommandsButNotInternalOnes(t *testing.T) {
+	_, out, _ := run(t, "--help")
+	for _, want := range []string{"listen", "kill", "pause", "add", "copy", "paste", "clear", "clean", "output", "--tab", "--keep"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("help is missing %q:\n%s", want, out)
 		}
 	}
-	if modifiers["listen"] {
-		t.Error("listen is a command, not a modifier")
+	for _, hidden := range []string{"hold", "  man "} {
+		if strings.Contains(out, hidden) {
+			t.Errorf("help should not list internal command %q", hidden)
+		}
+	}
+}
+
+func TestListenHelpExplainsForeground(t *testing.T) {
+	_, out, _ := run(t, "listen", "--help")
+	for _, want := range []string{"--foreground", "systemd", "78"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("listen --help is missing %q", want)
+		}
+	}
+}
+
+func TestManPages(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "man")
+	if code, _, se := run(t, "man", dir); code != 0 {
+		t.Fatalf("man: code %d, stderr %q", code, se)
+	}
+	for _, f := range []string{"glyphs.1", "glyphs-listen.1", "glyphs-pause.1"} {
+		b, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil || len(b) == 0 {
+			t.Errorf("%s was not generated: %v", f, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "glyphs-hold.1")); err == nil {
+		t.Error("the internal hold command must not get a man page")
+	}
+}
+
+func TestCompletionScripts(t *testing.T) {
+	for _, sh := range []string{"bash", "zsh", "fish", "powershell"} {
+		code, out, _ := run(t, "completion", sh)
+		if code != 0 || len(out) < 100 {
+			t.Errorf("completion %s: code %d, %d bytes", sh, code, len(out))
+		}
 	}
 }

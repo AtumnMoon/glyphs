@@ -7,8 +7,8 @@ This is an extemely customized one for me but if you wanna use, feel free.
 
 ```
 glyphs                      # open the TUI
-glyphs -tab emoji           # open on a given tab (clipboard | kaomoji | emoji)
-glyphs -listen              # record clipboard changes in the background
+glyphs --tab emoji          # open on a given tab (clipboard | kaomoji | emoji)
+glyphs listen               # record clipboard changes in the background
 ```
 
 ## Tabs
@@ -43,21 +43,25 @@ All rebindable (press `?` in the app).
 
 ## CLI
 
+glyphs uses subcommands (built with Cobra). `glyphs --help` and
+`glyphs <command> --help` describe everything, shell completions come from
+`glyphs completion bash|zsh|fish`, and release archives ship man pages.
+
 ```sh
-glyphs -listen                 # start background listener (replaces a running one)
-glyphs -listen-shell           # run the listener in the foreground (debugging)
-glyphs -kill                   # stop the listener
-glyphs -pause 5m               # pause recording (30s, 5m, 1h ...); -pause off resumes
-glyphs -a <text>               # add to history without copying (or pipe stdin)
-glyphs -c <text>               # copy to the system clipboard (or pipe stdin)
-glyphs -p                      # print current clipboard text
-glyphs -output-all raw         # print all text entries, one per line (newlines escaped)
-glyphs -output-all unescaped   # same, entries verbatim
-glyphs -clear                  # remove everything except pinned entries
-glyphs -clear-all | -clear-images | -clear-text
-glyphs -keep                   # open the TUI and stay open after copying
-glyphs -clean                  # sanitise text, drop orphaned images/entries
-glyphs -v | -help
+glyphs listen                  # start the background listener (replaces a running one)
+glyphs listen --foreground     # run the listener in this process (debugging, systemd)
+glyphs kill                    # stop the listener
+glyphs pause 5m                # pause recording (30s, 5m, 1h ...); `glyphs pause off` resumes
+glyphs add <text>              # add to history without copying (or pipe stdin)
+glyphs copy <text>             # copy to the system clipboard (or pipe stdin)
+glyphs paste                   # print current clipboard text
+glyphs output                  # print all text entries, one per line (newlines escaped)
+glyphs output --unescaped      # same, entries verbatim
+glyphs clear                   # remove everything except pinned entries
+glyphs clear --all|--images|--text
+glyphs clean                   # sanitise text, drop orphaned images/entries
+glyphs --keep                  # open the TUI and stay open after copying
+glyphs --version
 ```
 
 ## Configuration
@@ -160,8 +164,8 @@ inside the config directory, via `internal/clipboard` and
 and scoped clearing without changing the base file.
 
 On Linux/X11 the clipboard only lives as long as the program that copied it.
-So every copy from glyphs (`Enter` in the TUI, `-c`) is handed to a tiny
-detached holder process (`glyphs -hold`, internal) that owns the clipboard
+So every copy from glyphs (`Enter` in the TUI, `glyphs copy`) is handed to a tiny
+detached holder process (`glyphs hold`, internal) that owns the clipboard
 until something else is copied. macOS and Windows write directly.
 
 ## Credits
@@ -177,6 +181,10 @@ pickers.
 ```
 go install github.com/AtumnMoon/glyphs@latest
 ```
+
+## Systemd Service
+
+When starting the listener as a systemd service, use `/usr/bin/glyphs -listen-shell`.
 
 ## Development
 

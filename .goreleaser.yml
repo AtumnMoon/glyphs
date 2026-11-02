@@ -3,6 +3,12 @@ version: 2
 before:
   hooks:
     - go mod tidy
+    # man pages and shell completions are generated from the command tree
+    - sh -c 'rm -rf manpages completions && mkdir -p manpages completions'
+    - go run . man manpages
+    - sh -c 'go run . completion bash > completions/glyphs.bash'
+    - sh -c 'go run . completion zsh > completions/_glyphs'
+    - sh -c 'go run . completion fish > completions/glyphs.fish'
 
 builds:
   - id: glyphs-build
@@ -35,6 +41,18 @@ archives:
     formats: 
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - README.md
+      - LICENSE
+      - src: manpages/*
+        dst: man/man1
+        strip_parent: true
+      - src: completions/*
+        dst: completions
+        strip_parent: true
+      - src: contrib/*
+        dst: contrib
+        strip_parent: true
     format_overrides:
       - goos: windows
         formats: 
