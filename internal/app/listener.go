@@ -52,6 +52,12 @@ func Kill(cfg config.Config) (bool, error) {
 // LaunchListener starts the listener as a detached background process,
 // replacing any previous one.
 func LaunchListener(cfg config.Config) int {
+	// Check what the detached child would check, so a mistake is reported
+	// here, on the terminal, rather than into a log nobody is reading.
+	if _, err := Policy(cfg); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return ExitConfig
+	}
 	if _, err := Kill(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
@@ -84,6 +90,13 @@ func LaunchListener(cfg config.Config) int {
 // clipboard.Watch into the store's own Listen method, dropping data while
 // paused.
 func RunListener(cfg config.Config) int {
+	// An invalid exclusion pattern is a config error: refuse to run rather than
+	// record what the user meant to keep out.
+	policy, err := Policy(cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return ExitConfig
+	}
 	store, err := NewStore(cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -95,7 +108,7 @@ func RunListener(cfg config.Config) int {
 	}
 	inst, err := acquire(cfg.ListenerLockFile(), cfg.PIDFile(), "listener", false, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v; use -kill first\n", err)
+		fmt.Fprintf(os.Stderr, "error: %v; use `glyphs kill` first\n", err)
 		return 1
 	}
 	defer inst.release()
@@ -104,11 +117,6 @@ func RunListener(cfg config.Config) int {
 	defer stop()
 
 	fmt.Fprintf(os.Stderr, "%s glyphs listener started (pid %d)\n", time.Now().Format(time.RFC3339), os.Getpid())
-	policy, err := Policy(cfg)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		return 1
-	}
 	store.ListenWith(gate(gclip.Watch(ctx, gclip.FmtText, gclip.FmtImage), func() bool { return IsPaused(cfg) }), policy, os.Stderr)
 	return 0
 }

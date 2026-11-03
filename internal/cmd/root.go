@@ -141,10 +141,20 @@ func loadConfig(cmd *cobra.Command, strict bool) (cfg config.Config, cfgErr erro
 	cfg, cfgErr = config.Load()
 	if cfgErr != nil {
 		if strict {
-			return cfg, cfgErr, &exitError{code: exitConfig, msg: cfgErr.Error() + "\nrefusing to run with an invalid config; fix it and try again"}
+			msg := cfgErr.Error()
+			var ce *config.Error
+			if errors.As(cfgErr, &ce) && ce.Context != "" {
+				msg += "\n\n" + ce.Context
+			}
+			return cfg, cfgErr, &exitError{code: exitConfig, msg: msg + "\nrefusing to run with an invalid config; fix it and try again"}
 		}
 		if cmd.Name() != "glyphs" { // the TUI shows problems itself (Logs tab)
 			fmt.Fprintln(cmd.ErrOrStderr(), "warning:", cfgErr)
+		}
+	}
+	if cmd.Name() != "glyphs" {
+		for _, w := range cfg.Warnings {
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
 		}
 	}
 	return cfg, cfgErr, nil

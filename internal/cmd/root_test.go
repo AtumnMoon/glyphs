@@ -11,7 +11,19 @@ import (
 // run executes the CLI against a throw-away config dir.
 func run(t *testing.T, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
-	t.Setenv("GLYPHS_CONFIG_DIR", t.TempDir())
+	return runWithConfig(t, "", args...)
+}
+
+// runWithConfig is run with a config.toml (when body is not empty).
+func runWithConfig(t *testing.T, body string, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("GLYPHS_CONFIG_DIR", dir)
+	if body != "" {
+		if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	var out, errb bytes.Buffer
 	code = Execute(args, &out, &errb)
 	return code, out.String(), errb.String()
@@ -110,5 +122,55 @@ func TestCompletionScripts(t *testing.T) {
 		if code != 0 || len(out) < 100 {
 			t.Errorf("completion %s: code %d, %d bytes", sh, code, len(out))
 		}
+	}
+}
+
+// The safety property: a config that cannot be read must stop everything that
+// records clipboard data, because the defaults it would fall back to have no
+// excluded_patterns.
+func TestRecordingCommandsRefuseAnInvalidConfig(t *testing.T) {
+	broken := "excluded_patterns = [\"^sk-\"\nmax_history = 5\n" // missing ]
+	for _, args := range [][]string{{"listen"}, {"listen", "--foreground"}, {"add", "hunter2"}} {
+		code, _, se := runWithConfig(t, broken, args...)
+		if code != exitConfig {
+			t.Errorf("%v: code %d, want %d", args, code, exitConfig)
+		}
+		for _, want := range []string{"config.toml:", "refusing to run"} {
+			if !strings.Contains(se, want) {
+				t.Errorf("%v: stderr should contain %q, got:\n%s", args, want, se)
+			}
+		}
+	}
+}
+
+func TestListenRefusesAnInvalidExcludePattern(t *testing.T) {
+	// Valid TOML, invalid regexp: caught before anything is spawned.
+	for _, args := range [][]string{{"listen"}, {"listen", "--foreground"}, {"add", "x"}} {
+		if code, _, _ := runWithConfig(t, "excluded_patterns = [\"(unclosed\"]\n", args...); code != exitConfig {
+			t.Errorf("%v: code %d, want %d", args, code, exitConfig)
+		}
+	}
+}
+
+func TestReadOnlyCommandsOnlyWarnAboutAnInvalidConfig(t *testing.T) {
+	code, _, se := runWithConfig(t, "max_history = \n", "output")
+	if code != 0 {
+		t.Errorf("output must still work, code %d", code)
+	}
+	if !strings.Contains(se, "warning:") || !strings.Contains(se, "config.toml:1") {
+		t.Errorf("want a warning that locates the problem, got %q", se)
+	}
+}
+
+func TestUnknownOptionsAreReportedByTheCLI(t *testing.T) {
+	code, _, se := runWithConfig(t, "maxHistory = 3\n", "output")
+	if code != 0 || !strings.Contains(se, `did you mean "max_history"`) {
+		t.Errorf("code %d, stderr %q", code, se)
+	}
+}
+
+func TestAddRecordsWithAValidConfig(t *testing.T) {
+	if code, _, se := runWithConfig(t, "excluded_patterns = [\"^sk-\"]\n", "add", "hello"); code != 0 {
+		t.Errorf("add: code %d, stderr %q", code, se)
 	}
 }

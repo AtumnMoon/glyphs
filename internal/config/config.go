@@ -1,27 +1,38 @@
-// Package config loads glyphs' user configuration (config.json) and resolves
+// Package config loads glyphs' user configuration (config.toml) and resolves
 // the on-disk locations the app owns (config dir, log, pid and pause files).
 // The clipboard history file and image folder are managed by package
 // clipboard inside Dir.
 //
-// A JSON file is created with defaults on first run, any key missing
-// from the file silently falls back to its default, and path values
-// may be absolute, "~"-prefixed, contain $ENV vars, or be relative
-// to the config directory.
+// A commented config.toml is created on first run. Any option missing from
+// the file keeps its default. Path values may be absolute, "~"-prefixed,
+// contain $ENV vars, or be relative to the config directory.
+//
+// A file that cannot be read is reported as an *Error carrying the line and
+// column; Load then returns the defaults next to it so a caller that can
+// afford to (the TUI) keeps going, while one that must not (the listener,
+// whose excluded_patterns would be lost) can refuse to run.
 package config
 
 import (
-	"encoding/json"
+	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
+	"unicode"
+
+	"github.com/BurntSushi/toml"
 )
 
 const (
 	// AppDir is the directory name created inside the user's config dir.
 	AppDir = "glyphs"
 	// FileName is the config file name inside AppDir.
-	FileName = "config.json"
+	FileName = "config.toml"
 	// PIDFileName holds the PID of the background listener.
 	PIDFileName = "listener.pid"
 	// LockName are the lock files that prove an instance is alive
@@ -33,29 +44,38 @@ const (
 	PauseFileName = "paused_until"
 )
 
+// defaultTemplate is the commented config.toml written on first run. A test checks
+// that it parses to Default() and that every commented default matches.
+//
+//go:embed default_config.toml
+var defaultTemplate string
+
 // Config is the on-disk configuration shape.
 type Config struct {
-	AllowDuplicates   bool              `json:"allowDuplicates"`
-	MaxHistory        int               `json:"maxHistory"`
-	DeleteAfter       int               `json:"deleteAfter"` // seconds; 0 disables
-	ExcludedPatterns  []string          `json:"excludedPatterns"`
-	LogFilePath       string            `json:"logFile"`
-	MaxEntryLength    int               `json:"maxEntryLength"`
-	KeyBindings       map[string]string `json:"keyBindings"`
-	Theme             Theme             `json:"theme"`
-	UI                UI                `json:"ui"`
-	EnableMouse       bool              `json:"enableMouse"`
-	EnableDescription bool              `json:"enableDescription"`
-	QuitAfterCopy     bool              `json:"quitAfterCopy"`
-	DefaultTab        string            `json:"defaultTab"`   // clipboard | kaomoji | emoji
-	SearchOnOpen      []string          `json:"searchOnOpen"` // tabs whose search box starts focused
-	ImagePreview      string            `json:"imagePreview"` // auto | sixel | basic | off
-	SimpleEmoji       bool              `json:"simpleEmoji"`  // hide joined (ZWJ) emoji sequences
-	EmojiColumns      int               `json:"emojiColumns"` // max emoji per grid row (0 = fill the window)
-	EmojiRows         int               `json:"emojiRows"`    // max emoji grid rows shown at once (0 = fill the window)
+	AllowDuplicates   bool                `toml:"allow_duplicates"`
+	MaxHistory        int                 `toml:"max_history"`
+	DeleteAfter       int                 `toml:"delete_after"` // seconds; 0 disables
+	ExcludedPatterns  []string            `toml:"excluded_patterns"`
+	LogFilePath       string              `toml:"log_file"`
+	MaxEntryLength    int                 `toml:"max_entry_length"`
+	KeyBindings       map[string][]string `toml:"keys"`
+	Theme             Theme               `toml:"theme"`
+	UI                UI                  `toml:"ui"`
+	EnableMouse       bool                `toml:"enable_mouse"`
+	EnableDescription bool                `toml:"enable_description"`
+	QuitAfterCopy     bool                `toml:"quit_after_copy"`
+	DefaultTab        string              `toml:"default_tab"`    // clipboard | kaomoji | emoji
+	SearchOnOpen      []string            `toml:"search_on_open"` // tabs whose search box starts focused
+	ImagePreview      string              `toml:"image_preview"`  // auto | sixel | basic | off
+	SimpleEmoji       bool                `toml:"simple_emoji"`   // hide joined (ZWJ) emoji sequences
+	EmojiColumns      int                 `toml:"emoji_columns"`  // max emoji per grid row (0 = fill the window)
+	EmojiRows         int                 `toml:"emoji_rows"`     // max emoji grid rows shown at once (0 = fill the window)
 
 	// Dir is the resolved config directory (not serialised).
-	Dir string `json:"-"`
+	Dir string `toml:"-"`
+	// Warnings are problems that do not stop the config from loading:
+	// unknown options, out-of-range values that were corrected, ...
+	Warnings []string `toml:"-"`
 }
 
 // Default returns the built-in configuration.
@@ -74,39 +94,38 @@ func Default() Config {
 		EnableDescription: true,
 		QuitAfterCopy:     true,
 		DefaultTab:        "clipboard",
-		SearchOnOpen:      []string{"emoji"},
+		SearchOnOpen:      []string{"emoji", "kaomoji"},
 		ImagePreview:      "auto",
 		EmojiColumns:      16,
 		EmojiRows:         16,
 	}
 }
 
-// DefaultKeyBindings lists every rebindable action. Values may hold several
-// keys separated by commas, e.g. "q,esc".
-func DefaultKeyBindings() map[string]string {
-	return map[string]string{
-		"up":            "up,k",
-		"down":          "down,j",
-		"left":          "left,h",
-		"right":         "right,l",
-		"nextTab":       "tab",
-		"prevTab":       "shift+tab",
-		"choose":        "enter",
-		"filter":        "/",
-		"preview":       "space",
-		"togglePin":     "p",
-		"togglePinned":  "ctrl+p",
-		"remove":        "x,backspace,delete",
-		"selectSingle":  "s",
-		"selectUp":      "shift+up",
-		"selectDown":    "shift+down",
-		"clearSelected": "S",
-		"home":          "home,g",
-		"end":           "end,G",
-		"skinTone":      "t",
-		"more":          "?",
-		"quit":          "q,esc",
-		"forceQuit":     "ctrl+c",
+// DefaultKeyBindings lists every rebindable action and its keys.
+func DefaultKeyBindings() map[string][]string {
+	return map[string][]string{
+		"up":             {"up", "k"},
+		"down":           {"down", "j"},
+		"left":           {"left", "h"},
+		"right":          {"right", "l"},
+		"next_tab":       {"tab"},
+		"prev_tab":       {"shift+tab"},
+		"choose":         {"enter"},
+		"filter":         {"/"},
+		"preview":        {"space"},
+		"toggle_pin":     {"p"},
+		"toggle_pinned":  {"ctrl+p"},
+		"remove":         {"x", "backspace", "delete"},
+		"select_single":  {"s"},
+		"select_up":      {"shift+up"},
+		"select_down":    {"shift+down"},
+		"clear_selected": {"S"},
+		"home":           {"home", "g"},
+		"end":            {"end", "G"},
+		"skin_tone":      {"t"},
+		"more":           {"?"},
+		"quit":           {"q", "esc"},
+		"force_quit":     {"ctrl+c"},
 	}
 }
 
@@ -123,135 +142,202 @@ func Dir() (string, error) {
 	return filepath.Join(base, AppDir), nil
 }
 
-// Load reads (creating it with defaults if absent) config.json from the
-// standard directory and returns the resolved configuration.
+// Error is a config file that could not be used. Line and Col are 1-based and
+// zero when the problem has no position (e.g. a value of the wrong type).
+type Error struct {
+	Path      string
+	Line, Col int
+	Msg       string
+	Context   string // a few lines of the file around the problem, if known
+}
+
+func (e *Error) Error() string {
+	loc := e.Path
+	switch {
+	case e.Line > 0 && e.Col > 0:
+		loc = fmt.Sprintf("%s:%d:%d", e.Path, e.Line, e.Col)
+	case e.Line > 0:
+		loc = fmt.Sprintf("%s:%d", e.Path, e.Line)
+	}
+	return "config: " + loc + ": " + e.Msg
+}
+
+// Load reads config.toml from the standard directory (writing a commented
+// default on first run) and returns the resolved configuration. On error the
+// returned Config holds the defaults.
 func Load() (Config, error) {
 	dir, err := Dir()
 	if err != nil {
-		return Default(), err
+		return resolve(Default()), err
 	}
 	return LoadFrom(dir)
 }
 
-// LoadFrom is Load for an explicit directory; it also creates the history
-// file and temp dir so callers can use them immediately.
+// LoadFrom is Load for an explicit directory.
 func LoadFrom(dir string) (Config, error) {
-	cfg := Default()
-	cfg.Dir = dir
+	defaults := Default()
+	defaults.Dir = dir
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return cfg, fmt.Errorf("config: create %s: %w", dir, err)
+		return resolve(defaults), fmt.Errorf("config: create %s: %w", dir, err)
 	}
 
 	path := filepath.Join(dir, FileName)
 	raw, err := os.ReadFile(path)
 	switch {
 	case os.IsNotExist(err):
-		out, mErr := json.MarshalIndent(cfg, "", "    ")
-		if mErr != nil {
-			return cfg, mErr
+		if wErr := os.WriteFile(path, []byte(defaultTemplate), 0o644); wErr != nil {
+			return resolve(defaults), fmt.Errorf("config: write defaults: %w", wErr)
 		}
-		if wErr := os.WriteFile(path, append(out, '\n'), 0o644); wErr != nil {
-			return cfg, fmt.Errorf("config: write defaults: %w", wErr)
+		if _, sErr := os.Stat(filepath.Join(dir, "config.json")); sErr == nil {
+			defaults.Warnings = append(defaults.Warnings,
+				"found an old config.json, which is no longer read: glyphs now uses "+path+" (option names are snake_case)")
 		}
+		return resolve(defaults), nil
 	case err != nil:
-		return cfg, fmt.Errorf("config: read %s: %w", path, err)
-	default:
-		// Unmarshal over the defaults: keys that are absent keep their default.
-		// keyBindings/theme are re-merged below so blank values are ignored too.
-		if uErr := json.Unmarshal(raw, &cfg); uErr != nil {
-			// Keep running on defaults, but tell the caller.
-			cfg = Default()
-			cfg.Dir = dir
-			return resolve(cfg), fmt.Errorf("config: parse %s (using defaults): %w", path, uErr)
-		}
-		cfg.KeyBindings = mergeBindings(raw)
-		cfg.Theme = mergeTheme(raw)
-		cfg.UI = mergeUI(raw)
+		return resolve(defaults), fmt.Errorf("config: read %s: %w", path, err)
+	}
+
+	cfg, err := parse(string(raw), path, dir)
+	if err != nil {
+		return resolve(defaults), err
+	}
+	return cfg, nil
+}
+
+// parse decodes src over the defaults.
+func parse(src, path, dir string) (Config, error) {
+	cfg := Default()
+	// These three are decoded from empty so they hold only what the user
+	// wrote, then overlaid on the defaults below: that keeps a blank colour
+	// or an empty key list meaning "not set", and makes the result
+	// independent of map iteration order.
+	cfg.KeyBindings = nil
+	cfg.Theme = Theme{}
+	cfg.UI.TabNames = nil
+
+	md, err := toml.Decode(src, &cfg)
+	if err != nil {
+		return Config{}, newError(path, src, err)
+	}
+
+	var warn []string
+	for _, k := range md.Undecoded() {
+		warn = append(warn, unknownOption(k.String()))
+	}
+
+	cfg.Theme = DefaultTheme().overlay(cfg.Theme)
+	keys, kw := overlayKeys(cfg.KeyBindings)
+	cfg.KeyBindings = keys
+	warn = append(warn, kw...)
+	if cfg.UI.TabNames == nil {
+		cfg.UI.TabNames = DefaultUI().TabNames
 	}
 
 	cfg.Dir = dir
-	return resolve(cfg), nil
+	cfg = resolve(cfg)
+	cfg.Warnings = append(warn, cfg.Warnings...)
+	return cfg, nil
 }
 
-// mergeBindings overlays the user's keyBindings block on the defaults.
-func mergeBindings(raw []byte) map[string]string {
-	out := DefaultKeyBindings()
-	var probe struct {
-		KeyBindings map[string]string `json:"keyBindings"`
+// typeErr matches the errors BurntSushi/toml raises when a value has the wrong
+// type: it names the line and the option but gives no column.
+var typeErr = regexp.MustCompile(`^toml: line (\d+) \(last key "([^"]*)"\): (.*)$`)
+
+func newError(path, src string, err error) *Error {
+	var pe toml.ParseError
+	if errors.As(err, &pe) {
+		return &Error{Path: path, Line: pe.Position.Line, Col: pe.Position.Col, Msg: pe.Message, Context: pe.ErrorWithPosition()}
 	}
-	if json.Unmarshal(raw, &probe) == nil {
-		for k, v := range probe.KeyBindings {
-			if strings.TrimSpace(v) != "" {
-				out[k] = v
+	if m := typeErr.FindStringSubmatch(err.Error()); m != nil {
+		line, _ := strconv.Atoi(m[1])
+		e := &Error{Path: path, Line: line, Msg: fmt.Sprintf("option %q: %s", m[2], m[3])}
+		if lines := strings.Split(src, "\n"); line >= 1 && line <= len(lines) {
+			e.Context = fmt.Sprintf("At line %d:\n\n%6d | %s", line, line, lines[line-1])
+		}
+		return e
+	}
+	return &Error{Path: path, Msg: strings.TrimPrefix(err.Error(), "toml: ")}
+}
+
+// unknownOption words the warning for an option the program does not have. A
+// camelCase name is almost certainly a leftover from the old JSON config.
+func unknownOption(key string) string {
+	leaf := key[strings.LastIndex(key, ".")+1:]
+	if strings.IndexFunc(leaf, unicode.IsUpper) >= 0 {
+		var b strings.Builder
+		for i, r := range leaf {
+			if unicode.IsUpper(r) && i > 0 {
+				b.WriteByte('_')
+			}
+			b.WriteRune(unicode.ToLower(r))
+		}
+		return fmt.Sprintf("unknown option %q: names are snake_case now, did you mean %q?", key, b.String())
+	}
+	return fmt.Sprintf("unknown option %q (ignored)", key)
+}
+
+// overlayKeys applies the user's key bindings over the defaults. An empty
+// list is ignored (it would leave the action unreachable), and an action name
+// the program does not have is reported.
+func overlayKeys(user map[string][]string) (map[string][]string, []string) {
+	out := DefaultKeyBindings()
+	var warn []string
+	for action, keys := range user {
+		if _, known := out[action]; !known {
+			warn = append(warn, unknownOption("keys."+action))
+			continue
+		}
+		var clean []string
+		for _, k := range keys {
+			if k = strings.TrimSpace(k); k != "" {
+				clean = append(clean, k)
 			}
 		}
-	}
-	return out
-}
-
-// mergeTheme overlays the user's theme block on the default theme.
-func mergeTheme(raw []byte) Theme {
-	out := DefaultTheme()
-	var probe struct {
-		Theme map[string]string `json:"theme"`
-	}
-	if json.Unmarshal(raw, &probe) == nil {
-		out.apply(probe.Theme)
-	}
-	return out
-}
-
-// mergeUI overlays the user's ui block on the default strings. Unlike the
-// theme, a key that is present but empty is kept: it means "show nothing".
-func mergeUI(raw []byte) UI {
-	out := DefaultUI()
-	// Decode tabNames into an empty map so it holds only the user's keys;
-	// resolve overlays them on the defaults. (Decoding into the default map
-	// would leave "emoji" next to a user's "Emoji", and which one won would
-	// depend on map iteration order.)
-	out.TabNames = nil
-	var probe struct {
-		UI json.RawMessage `json:"ui"`
-	}
-	if json.Unmarshal(raw, &probe) == nil && len(probe.UI) > 0 {
-		// Unmarshal over the defaults: absent keys stay, present keys win. A
-		// wrongly typed key makes the whole block fall back to the defaults.
-		if err := json.Unmarshal(probe.UI, &out); err != nil {
-			out = DefaultUI()
+		if len(clean) > 0 {
+			out[action] = clean
 		}
 	}
-	if out.TabNames == nil {
-		out.TabNames = DefaultUI().TabNames
-	}
-	return out
+	return out, warn
 }
 
 func resolve(cfg Config) Config {
+	warn := func(format string, a ...any) { cfg.Warnings = append(cfg.Warnings, fmt.Sprintf(format, a...)) }
+	for k := range cfg.UI.TabNames {
+		if !slices.Contains(TabKeys, strings.ToLower(strings.TrimSpace(k))) {
+			warn("ui.tab_names: unknown tab %q (use %s)", k, strings.Join(TabKeys, ", "))
+		}
+	}
 	cfg.UI = cfg.UI.resolve()
 	cfg.LogFilePath = ResolvePath(cfg.LogFilePath, cfg.Dir)
 	if cfg.MaxHistory < 0 {
+		warn("max_history is negative, using 0 (unlimited)")
 		cfg.MaxHistory = 0
 	}
 	if cfg.MaxEntryLength < 10 {
+		warn("max_entry_length %d is too small, using 65", cfg.MaxEntryLength)
 		cfg.MaxEntryLength = 65
 	}
-	switch strings.ToLower(cfg.DefaultTab) {
-	case "kaomoji", "emoji", "clipboard":
-		cfg.DefaultTab = strings.ToLower(cfg.DefaultTab)
-	default:
+	if t := strings.ToLower(cfg.DefaultTab); slices.Contains(TabKeys, t) {
+		cfg.DefaultTab = t
+	} else {
+		warn("default_tab %q is not one of %s, using clipboard", cfg.DefaultTab, strings.Join(TabKeys, ", "))
 		cfg.DefaultTab = "clipboard"
 	}
-	switch strings.ToLower(cfg.ImagePreview) {
-	case "auto", "sixel", "basic", "off":
-		cfg.ImagePreview = strings.ToLower(cfg.ImagePreview)
-	default:
+	if p := strings.ToLower(cfg.ImagePreview); slices.Contains([]string{"auto", "sixel", "basic", "off"}, p) {
+		cfg.ImagePreview = p
+	} else {
+		warn("image_preview %q is not auto, sixel, basic or off, using auto", cfg.ImagePreview)
 		cfg.ImagePreview = "auto"
 	}
 	cfg.EmojiColumns = max(cfg.EmojiColumns, 0)
 	cfg.EmojiRows = max(cfg.EmojiRows, 0)
 	for i, t := range cfg.SearchOnOpen {
-		cfg.SearchOnOpen[i] = strings.ToLower(strings.TrimSpace(t))
+		t = strings.ToLower(strings.TrimSpace(t))
+		if !slices.Contains(TabKeys, t) {
+			warn("search_on_open: unknown tab %q (use %s)", t, strings.Join(TabKeys, ", "))
+		}
+		cfg.SearchOnOpen[i] = t
 	}
 	return cfg
 }
@@ -288,17 +374,11 @@ func (c Config) TUIPIDFile() string { return filepath.Join(c.Dir, TUIPIDFileName
 // PauseFile is the path of the pause marker file.
 func (c Config) PauseFile() string { return filepath.Join(c.Dir, PauseFileName) }
 
-// Keys returns the list of keys bound to action (split on commas).
+// Keys returns the keys bound to action.
 func (c Config) Keys(action string) []string {
-	raw, ok := c.KeyBindings[action]
+	keys, ok := c.KeyBindings[action]
 	if !ok {
-		raw = DefaultKeyBindings()[action]
+		keys = DefaultKeyBindings()[action]
 	}
-	var out []string
-	for k := range strings.SplitSeq(raw, ",") {
-		if k = strings.TrimSpace(k); k != "" {
-			out = append(out, k)
-		}
-	}
-	return out
+	return slices.Clone(keys)
 }

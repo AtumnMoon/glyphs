@@ -239,11 +239,24 @@ func TestGridLeftReturnsToCategories(t *testing.T) {
 	}
 }
 
-func TestSearchKaomoji(t *testing.T) {
-	h := newHarness(t, "kaomoji", nil)
-	if h.model().typing {
-		t.Fatal("kaomoji search should not grab the keyboard by default")
+// The default search_on_open lists emoji and kaomoji; a tab left out of it
+// starts with the keyboard on the single-key commands instead.
+func TestSearchOnOpenDefaultsAndOverride(t *testing.T) {
+	if h := newHarness(t, "kaomoji", nil); !h.model().typing {
+		t.Error("kaomoji search should start focused by default")
 	}
+	h := newHarness(t, "kaomoji", func(c *config.Config) { c.SearchOnOpen = []string{"emoji"} })
+	if h.model().typing {
+		t.Fatal("a tab that is not in search_on_open must not grab the keyboard")
+	}
+	h.press("/")
+	if !h.model().typing {
+		t.Fatal("/ should start typing in the search bar")
+	}
+}
+
+func TestSearchKaomoji(t *testing.T) {
+	h := newHarness(t, "kaomoji", func(c *config.Config) { c.SearchOnOpen = nil })
 	h.press("/")
 	if !h.model().typing {
 		t.Fatal("/ should start typing in the search bar")
@@ -669,8 +682,8 @@ func TestViewNeverOverflows(t *testing.T) {
 
 func TestRebindableKeys(t *testing.T) {
 	h := newHarness(t, "kaomoji", func(c *config.Config) {
-		c.KeyBindings["quit"] = "x"
-		c.KeyBindings["nextTab"] = "n"
+		c.KeyBindings["quit"] = []string{"x"}
+		c.KeyBindings["next_tab"] = []string{"n"}
 	})
 	h.press("n")
 	if h.model().tab != tabEmoji {
@@ -884,7 +897,7 @@ func TestSearchBarTextIsConfigurable(t *testing.T) {
 		c.UI.SearchPlaceholder = "start typing!"
 		c.UI.SearchPrompt = "> "
 		c.UI.SearchClearHint = " [esc]"
-		c.KeyBindings["filter"] = "f"
+		c.KeyBindings["filter"] = []string{"f"}
 	})
 	if v := h.view(); !strings.Contains(v, "hit f to find") {
 		t.Errorf("idle hint should use the configured text and filter key:\n%s", v)

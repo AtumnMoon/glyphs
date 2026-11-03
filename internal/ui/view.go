@@ -444,7 +444,7 @@ func (m *model) viewPreview() []string {
 			}
 		}
 		if m.cfg.ImagePreview == "off" {
-			content = []string{m.st.muted.Render("  Image preview is turned off (imagePreview in config.json).")}
+			content = []string{m.st.muted.Render("  Image preview is turned off (image_preview in config.toml).")}
 		}
 		lines = append(lines, m.st.paneTitle.Render(fit(header, w)))
 		lines = append(lines, content...)

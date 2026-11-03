@@ -84,90 +84,115 @@ supervisor that tracks the process it starts (runit, s6, ...) needs
 
 ## Configuration
 
-`~/.config/glyphs/config.json` (or `$XDG_CONFIG_HOME`, or `$GLYPHS_CONFIG_DIR`)
-is created on first run. Missing keys fall back to defaults.
+`~/.config/glyphs/config.toml` (or `$XDG_CONFIG_HOME`, or `$GLYPHS_CONFIG_DIR`)
+is created on first run, fully commented. Every option is optional: leave it
+out and the default applies. Option names are `snake_case`. (There is no
+migration from the old `config.json`: it is ignored, with a notice on the
+first run.)
+
+**An invalid config is never silently ignored.** The listener (and
+`glyphs add`) refuse to run and exit with status 78, because the defaults they
+would fall back to have no `excluded_patterns`, so they would record what you
+meant to keep out. The TUI still starts, on the defaults, with a `⚠ config`
+badge in the clipboard header and the details, with file, line and column, in
+the **Logs** tab. Unknown options are only warnings (a camelCase leftover gets
+a "did you mean" hint).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `allowDuplicates` | `false` | `false`: re-copying moves the old entry to the top (pin kept) |
-| `deleteAfter` | `0` | Auto-delete unpinned entries older than N seconds; `0` = never |
-| `excludedPatterns` | `[]` | Regexes; matching text is never recorded, e.g. `"^sk-[A-Za-z0-9]+$"` |
-| `maxHistory` | `100` | Max entries (pinned never count against it); `0` = unlimited |
-| `quitAfterCopy` | `true` | Exit after picking an item |
-| `defaultTab` | `clipboard` | Tab opened by default |
-| `searchOnOpen` | `["emoji"]` | Tabs whose search box starts focused (`clipboard`, `kaomoji`, `emoji`) |
-| `imagePreview` | `auto` | `auto`, `sixel`, `basic` or `off` |
-| `simpleEmoji` | `false` | Hide joined (ZWJ) emoji sequences; turn on if your terminal garbles them |
-| `emojiColumns` / `emojiRows` | `16` / `8` | Emoji grid size. Drawing fewer glyphs per frame keeps first paint instant; `0` fills the window |
-| `maxEntryLength` | `65` | Max characters of an entry shown in the list |
-| `enableDescription` | `true` | Second line (time, size) per entry |
-| `enableMouse` | `true` | Wheel scrolling, click tabs |
-| `logFile` | `glyphs.log` | Listener log; absolute, `~`, `$VAR`, or relative to the config dir |
-| `keyBindings` | | Action → comma-separated keys, e.g. `"quit": "q,esc"` |
-| `theme` | green | Colours, see [Theme](#theme) |
-| `ui` | | Text, markers and small layout switches, see [UI text and markers](#ui-text-and-markers) |
+| `allow_duplicates` | `false` | `false`: re-copying moves the old entry to the top. A pinned entry keeps its place |
+| `delete_after` | `0` | Auto-delete unpinned entries older than N seconds; `0` = never |
+| `excluded_patterns` | `[]` | Regexes; matching text is never recorded, e.g. `["^sk-[A-Za-z0-9]+$"]` |
+| `max_history` | `100` | Max entries (pinned never count against it); `0` = unlimited |
+| `quit_after_copy` | `true` | Exit after picking an item |
+| `default_tab` | `"clipboard"` | Tab opened by default (`clipboard`, `kaomoji`, `emoji`, `logs`) |
+| `search_on_open` | `["emoji", "kaomoji"]` | Tabs whose search box starts focused |
+| `image_preview` | `"auto"` | `auto`, `sixel`, `basic` or `off` |
+| `simple_emoji` | `false` | Hide joined (ZWJ) emoji sequences; turn on if your terminal garbles them |
+| `emoji_columns` / `emoji_rows` | `16` / `16` | Emoji grid size. Drawing fewer glyphs per frame keeps first paint instant; `0` fills the window |
+| `max_entry_length` | `65` | Max characters of an entry shown in the list |
+| `enable_description` | `true` | Second line (time, size) per entry |
+| `enable_mouse` | `true` | Wheel scrolling, click tabs |
+| `log_file` | `"glyphs.log"` | Listener log; absolute, `~`, `$VAR`, or relative to the config dir |
+| `[keys]` | | Action → list of keys, e.g. `quit = ["q", "esc"]`; see below |
+| `[theme]` | green | Colours, see [Theme](#theme) |
+| `[ui]` | | Text, markers and small layout switches, see [UI text and markers](#ui-text-and-markers) |
+
+### Keys
+
+Keys are lists, so any key can be bound, including the comma (`quit = ["q", ","]`).
+An empty list is ignored. The actions and their defaults are listed (commented
+out) in the generated `config.toml`.
 
 ### Theme
 
-Every colour is a hex string (or ANSI number) under `theme`. Set only what you
-want to change. Optional keys left empty inherit the colour named below, so
-changing `selected` or `muted` alone keeps everything coherent.
+Every colour is a quoted hex string (or ANSI number) under `[theme]`. Set only
+what you want to change. Optional keys left empty inherit the colour named
+below, so changing `selected` or `muted` alone keeps everything coherent.
 
 | Key | Meaning | Inherits |
 | --- | --- | --- |
-| `accent`, `accentFg` | Active tab background / text, pane titles, divider | |
-| `inactiveTabFg`, `inactiveTabBg` | Inactive tabs | |
+| `accent`, `accent_fg` | Active tab background / text, pane titles, divider | |
+| `inactive_tab_fg`, `inactive_tab_bg` | Inactive tabs | |
 | `text`, `muted` | Primary / secondary text | |
-| `selected`, `selectedBg` | Highlighted row text / background | |
-| `selectedDesc` | The second line (time, size) under the highlighted row | `selected` |
-| `selectedPin`, `selectedMulti` | Pin / select marker on the highlighted row | `selected` |
-| `selectedDim`, `selectedDimBg` | Highlighted row while its pane is not focused | `text`, `selectedBg` |
+| `selected`, `selected_bg` | Highlighted row text / background | |
+| `selected_desc` | The second line (time, size) under the highlighted row | `selected` |
+| `selected_pin`, `selected_multi` | Pin / select marker on the highlighted row | `selected` |
+| `selected_dim`, `selected_dim_bg` | Highlighted row while its pane is not focused | `text`, `selected_bg` |
 | `pin`, `multi` | Pin / multi-select marker on other rows | |
 | `status`, `error` | Status line, errors and delete prompt | |
-| `filterPrompt` | The search prompt | |
-| `filterText`, `filterCursor`, `filterHint` | Typed query, caret, "(esc clears)" | `text`, `filterPrompt`, `muted` |
+| `filter_prompt` | The search prompt | |
+| `filter_text`, `filter_cursor`, `filter_hint` | Typed query, caret, "(esc clears)" | `text`, `filter_prompt`, `muted` |
 | `placeholder` | Search placeholder and idle hint | `muted` |
 | `description` | Second line of other rows | `muted` |
 | `detail` | Detail line under the emoji/kaomoji grid | `muted` |
-| `divider`, `paneTitle`, `paneTitleDim` | Pane divider and headings | `accent`, `accent`, `muted` |
-| `badgeListening`, `badgePaused`, `badgeOff` | Listener badge | `status`, `pin`, `muted` |
-| `helpKey`, `helpDesc`, `helpSeparator` | Help bar (empty = built-in grey) | |
+| `divider`, `pane_title`, `pane_title_dim` | Pane divider and headings | `accent`, `accent`, `muted` |
+| `badge_listening`, `badge_paused`, `badge_off` | Listener badge | `status`, `pin`, `muted` |
+| `help_key`, `help_desc`, `help_separator` | Help bar (empty = built-in grey) | |
 
-Light highlight colour? Set `selected` (title) and `selectedDesc` (second line)
-to something dark, e.g. `"selectedDesc": "#2D3B2B"`.
+Light highlight colour? Set `selected` (title) and `selected_desc` (second line)
+to something dark, e.g. `selected_desc = "#2D3B2B"`.
 
 ### UI text and markers
 
-Everything under `ui` is optional. A key set to `""` is honoured where it makes
-sense (`"pinMarker": ""` hides the marker, `"searchPlaceholder": ""` shows none).
+Everything under `[ui]` is optional. A key set to `""` is honoured where it makes
+sense (`pin_marker = ""` hides the marker, `search_placeholder = ""` shows none).
 Rows stay aligned whatever marker width you pick.
 
 | Key | Default |
 | --- | --- |
-| `pinMarker` / `selectMarker` | `🖈` / `✓` |
-| `searchPrompt` / `searchCursor` | `"❯ "` / `▏` |
-| `searchPlaceholder` | `type to search…` (search box focused, nothing typed) |
-| `searchIdle` | `press '{key}' for filter` (`{key}` = your `filter` binding) |
-| `searchClearHint` | `   (esc clears)` |
-| `tabNames` | `{"clipboard": "Clipboard", "kaomoji": "Kaomoji", "emoji": "Emoji"}` |
-| `tabFormat` | `{n} {name}` (e.g. `"{name}"` to drop the numbers) |
-| `kaomojiHeading` / `emojiHeading` | `Categories` / `Groups` |
-| `historyTitle` / `previewTitle` | `History` / `Preview` |
-| `pinnedOnly` / `selectedLabel` | ` · pinned only` / ` · {count} selected` |
+| `pin_marker` / `select_marker` | `🖈` / `✓` |
+| `search_prompt` / `search_cursor` | `"❯ "` / `▏` |
+| `search_placeholder` | `type to search…` (search box focused, nothing typed) |
+| `search_idle` | `press '{key}' for filter` (`{key}` = your `filter` binding) |
+| `search_clear_hint` | `   (esc clears)` |
+| `[ui.tab_names]` | `clipboard = "Clipboard"`, `kaomoji = "Kaomoji"`, `emoji = "Emoji"` |
+| `tab_format` | `{n} {name}` (e.g. `"{name}"` to drop the numbers) |
+| `kaomoji_heading` / `emoji_heading` | `Categories` / `Groups` |
+| `history_title` / `preview_title` | `History` / `Preview` |
+| `pinned_only` / `selected_label` | ` · pinned only` / ` · {count} selected` |
 | `divider` | `" │ "` |
-| `badgeListening` / `badgePaused` / `badgeOff` | `● listening` / `⏸ paused` / `○ listener off` |
-| `emptyHistory` / `emptyPinned` / `noMatches` | empty-state messages |
-| `windowTitle` | `Glyphs` |
-| `boldSelected` / `boldActiveTab` | `true` / `true` |
+| `badge_listening` / `badge_paused` / `badge_off` | `● listening` / `⏸ paused` / `○ listener off` |
+| `empty_history` / `empty_pinned` / `no_matches` | empty-state messages |
+| `window_title` | `Glyphs` |
+| `bold_selected` / `bold_active_tab` | `true` / `true` |
 
 Example:
 
-```json
-{
-    "theme": { "selected": "#090C09", "selectedBg": "#7A9B76", "selectedDesc": "#2D3B2B",
-               "placeholder": "#7A9B76", "helpKey": "#7A9B76" },
-    "ui": { "pinMarker": "🖈", "searchIdle": "/ to search", "tabFormat": "{name}" }
-}
+```toml
+search_on_open = ["emoji", "kaomoji"]
+
+[theme]
+selected = "#090C09"
+selected_bg = "#7A9B76"
+selected_desc = "#2D3B2B"
+placeholder = "#7A9B76"
+help_key = "#7A9B76"
+
+[ui]
+pin_marker = "🖈"
+search_idle = "/ to search"
+tab_format = "{name}"
 ```
 
 The clipboard history (`clipboard_history.json`, `tmp_files/`) lives in the

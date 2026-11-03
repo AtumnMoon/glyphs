@@ -43,7 +43,8 @@ func Add(cfg config.Config, args []string) int {
 	}
 	policy, err := Policy(cfg)
 	if err != nil {
-		return fail(err)
+		fail(err)
+		return ExitConfig
 	}
 	if _, ok, err := store.RecordText(text, policy); err != nil {
 		return fail(err)

@@ -6,57 +6,57 @@ import (
 )
 
 // Theme holds every colour the TUI uses as a hex string (or ANSI number).
-// Users override any subset under "theme" in config.json.
+// Users override any subset in the [theme] table of config.toml.
 //
 // The first block always has a value. The second block is optional: an empty
 // value means "inherit", and Resolve fills in the inherited colour (named in
 // each comment), so a theme that only sets the basics still looks coherent.
 type Theme struct {
-	Accent        string `json:"accent"`       // active tab bg, borders
-	AccentFg      string `json:"accentFg"`     // text on accent
-	Muted         string `json:"muted"`        // secondary text
-	Text          string `json:"text"`         // primary text
-	Selected      string `json:"selected"`     // highlighted row
-	SelectedBg    string `json:"selectedBg"`   // highlighted row background
-	Pin           string `json:"pin"`          // pin marker
-	Multi         string `json:"multi"`        // multi-select marker
-	Status        string `json:"status"`       // status messages
-	Error         string `json:"error"`        // error messages
-	FilterPrompt  string `json:"filterPrompt"` // "/" prompt
-	InactiveTabFg string `json:"inactiveTabFg"`
-	InactiveTabBg string `json:"inactiveTabBg"`
+	Accent        string `toml:"accent"`        // active tab bg, borders
+	AccentFg      string `toml:"accent_fg"`     // text on accent
+	Muted         string `toml:"muted"`         // secondary text
+	Text          string `toml:"text"`          // primary text
+	Selected      string `toml:"selected"`      // highlighted row
+	SelectedBg    string `toml:"selected_bg"`   // highlighted row background
+	Pin           string `toml:"pin"`           // pin marker
+	Multi         string `toml:"multi"`         // multi-select marker
+	Status        string `toml:"status"`        // status messages
+	Error         string `toml:"error"`         // error messages
+	FilterPrompt  string `toml:"filter_prompt"` // "/" prompt
+	InactiveTabFg string `toml:"inactive_tab_fg"`
+	InactiveTabBg string `toml:"inactive_tab_bg"`
 
 	// ---- optional (empty = inherit) ----
 
 	// Highlighted row.
-	SelectedDesc  string `json:"selectedDesc"`  // 2nd line under the highlighted row (inherits selected)
-	SelectedPin   string `json:"selectedPin"`   // pin marker on the highlighted row (inherits selected)
-	SelectedMulti string `json:"selectedMulti"` // multi-select marker on the highlighted row (inherits selected)
-	SelectedDim   string `json:"selectedDim"`   // highlighted row while its pane is not focused (inherits text)
-	SelectedDimBg string `json:"selectedDimBg"` // background of that row (inherits selectedBg)
+	SelectedDesc  string `toml:"selected_desc"`   // 2nd line under the highlighted row (inherits selected)
+	SelectedPin   string `toml:"selected_pin"`    // pin marker on the highlighted row (inherits selected)
+	SelectedMulti string `toml:"selected_multi"`  // multi-select marker on the highlighted row (inherits selected)
+	SelectedDim   string `toml:"selected_dim"`    // highlighted row while its pane is not focused (inherits text)
+	SelectedDimBg string `toml:"selected_dim_bg"` // background of that row (inherits selectedBg)
 
 	// Search bar.
-	Placeholder  string `json:"placeholder"`  // placeholder / idle hint text (inherits muted)
-	FilterText   string `json:"filterText"`   // the query being typed (inherits text)
-	FilterCursor string `json:"filterCursor"` // the caret (inherits filterPrompt)
-	FilterHint   string `json:"filterHint"`   // "(esc clears)" (inherits muted)
+	Placeholder  string `toml:"placeholder"`   // placeholder / idle hint text (inherits muted)
+	FilterText   string `toml:"filter_text"`   // the query being typed (inherits text)
+	FilterCursor string `toml:"filter_cursor"` // the caret (inherits filterPrompt)
+	FilterHint   string `toml:"filter_hint"`   // "(esc clears)" (inherits muted)
 
 	// Lists and panes.
-	Description  string `json:"description"`  // 2nd line of unselected rows (inherits muted)
-	Detail       string `json:"detail"`       // detail line under the grid (inherits muted)
-	Divider      string `json:"divider"`      // line between the panes (inherits accent)
-	PaneTitle    string `json:"paneTitle"`    // pane heading, focused (inherits accent)
-	PaneTitleDim string `json:"paneTitleDim"` // pane heading, unfocused (inherits muted)
+	Description  string `toml:"description"`    // 2nd line of unselected rows (inherits muted)
+	Detail       string `toml:"detail"`         // detail line under the grid (inherits muted)
+	Divider      string `toml:"divider"`        // line between the panes (inherits accent)
+	PaneTitle    string `toml:"pane_title"`     // pane heading, focused (inherits accent)
+	PaneTitleDim string `toml:"pane_title_dim"` // pane heading, unfocused (inherits muted)
 
 	// Listener badge in the clipboard header.
-	BadgeListening string `json:"badgeListening"` // (inherits status)
-	BadgePaused    string `json:"badgePaused"`    // (inherits pin)
-	BadgeOff       string `json:"badgeOff"`       // (inherits muted)
+	BadgeListening string `toml:"badge_listening"` // (inherits status)
+	BadgePaused    string `toml:"badge_paused"`    // (inherits pin)
+	BadgeOff       string `toml:"badge_off"`       // (inherits muted)
 
 	// Help bar. Empty keeps the built-in grey.
-	HelpKey       string `json:"helpKey"`
-	HelpDesc      string `json:"helpDesc"`
-	HelpSeparator string `json:"helpSeparator"`
+	HelpKey       string `toml:"help_key"`
+	HelpDesc      string `toml:"help_desc"`
+	HelpSeparator string `toml:"help_separator"`
 }
 
 func DefaultTheme() Theme {
@@ -77,26 +77,16 @@ func DefaultTheme() Theme {
 	}
 }
 
-// jsonFields maps every "theme" JSON key to the matching field of t.
-func (t *Theme) jsonFields() map[string]*string {
-	out := map[string]*string{}
-	v := reflect.ValueOf(t).Elem()
-	for i := 0; i < v.NumField(); i++ {
-		name, _, _ := strings.Cut(v.Type().Field(i).Tag.Get("json"), ",")
-		if name != "" && name != "-" {
-			out[name] = v.Field(i).Addr().Interface().(*string)
+// overlay returns t with every non-blank string field of user applied on top.
+// A blank value never overrides: it means "not set".
+func (t Theme) overlay(user Theme) Theme {
+	dst, src := reflect.ValueOf(&t).Elem(), reflect.ValueOf(user)
+	for i := range dst.NumField() {
+		if v := strings.TrimSpace(src.Field(i).String()); v != "" {
+			dst.Field(i).SetString(v)
 		}
 	}
-	return out
-}
-
-func (t *Theme) apply(m map[string]string) {
-	set := t.jsonFields()
-	for k, v := range m {
-		if p, ok := set[k]; ok && strings.TrimSpace(v) != "" {
-			*p = strings.TrimSpace(v)
-		}
-	}
+	return t
 }
 
 // Resolve returns a copy of the theme with every optional colour that was

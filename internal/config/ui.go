@@ -6,55 +6,55 @@ import (
 )
 
 // UI holds every piece of text, marker and small layout switch the TUI shows,
-// under "ui" in config.json. Any key left out keeps its default and a key set to
-// "" is honoured where it makes sense (e.g. an empty pinMarker hides the pin
-// marker, an empty searchPlaceholder shows no placeholder).
+// in the [ui] table of config.toml. Any key left out keeps its default and a key set to
+// "" is honoured where it makes sense (e.g. an empty pin_marker hides the pin
+// marker, an empty search_placeholder shows no placeholder).
 //
 // Some strings take {placeholders}, replaced at draw time:
 //
-//	tabFormat        {n} tab number, {name} tab name
-//	searchIdle       {key} first key bound to "filter"
-//	selectedLabel    {count} number of selected entries
+//	tab_format       {n} tab number, {name} tab name
+//	search_idle      {key} first key bound to "filter"
+//	selected_label   {count} number of selected entries
 type UI struct {
-	WindowTitle string `json:"windowTitle"` // terminal window title
+	WindowTitle string `toml:"window_title"` // terminal window title
 
 	// Markers in the clipboard list.
-	PinMarker    string `json:"pinMarker"`    // shown on pinned entries
-	SelectMarker string `json:"selectMarker"` // shown on multi-selected entries
+	PinMarker    string `toml:"pin_marker"`    // shown on pinned entries
+	SelectMarker string `toml:"select_marker"` // shown on multi-selected entries
 
 	// Search bar.
-	SearchPrompt      string `json:"searchPrompt"`      // before the query
-	SearchCursor      string `json:"searchCursor"`      // caret while typing
-	SearchPlaceholder string `json:"searchPlaceholder"` // focused, nothing typed yet
-	SearchIdle        string `json:"searchIdle"`        // not focused, no query
-	SearchClearHint   string `json:"searchClearHint"`   // after a kept query
+	SearchPrompt      string `toml:"search_prompt"`      // before the query
+	SearchCursor      string `toml:"search_cursor"`      // caret while typing
+	SearchPlaceholder string `toml:"search_placeholder"` // focused, nothing typed yet
+	SearchIdle        string `toml:"search_idle"`        // not focused, no query
+	SearchClearHint   string `toml:"search_clear_hint"`  // after a kept query
 
-	// Tab bar. tabNames is keyed by clipboard | kaomoji | emoji.
-	TabNames  map[string]string `json:"tabNames"`
-	TabFormat string            `json:"tabFormat"`
+	// Tab bar. tab_names is keyed by clipboard | kaomoji | emoji.
+	TabNames  map[string]string `toml:"tab_names"`
+	TabFormat string            `toml:"tab_format"`
 
 	// Pane headings and the divider between panes.
-	KaomojiHeading string `json:"kaomojiHeading"`
-	EmojiHeading   string `json:"emojiHeading"`
-	HistoryTitle   string `json:"historyTitle"`
-	PinnedOnly     string `json:"pinnedOnly"`    // appended to the title in pinned-only mode
-	SelectedLabel  string `json:"selectedLabel"` // appended to the title while multi-selecting
-	PreviewTitle   string `json:"previewTitle"`
-	Divider        string `json:"divider"`
+	KaomojiHeading string `toml:"kaomoji_heading"`
+	EmojiHeading   string `toml:"emoji_heading"`
+	HistoryTitle   string `toml:"history_title"`
+	PinnedOnly     string `toml:"pinned_only"`    // appended to the title in pinned-only mode
+	SelectedLabel  string `toml:"selected_label"` // appended to the title while multi-selecting
+	PreviewTitle   string `toml:"preview_title"`
+	Divider        string `toml:"divider"`
 
 	// Clipboard header badge.
-	BadgeListening string `json:"badgeListening"`
-	BadgePaused    string `json:"badgePaused"`
-	BadgeOff       string `json:"badgeOff"`
+	BadgeListening string `toml:"badge_listening"`
+	BadgePaused    string `toml:"badge_paused"`
+	BadgeOff       string `toml:"badge_off"`
 
 	// Empty states.
-	EmptyHistory string `json:"emptyHistory"`
-	EmptyPinned  string `json:"emptyPinned"`
-	NoMatches    string `json:"noMatches"`
+	EmptyHistory string `toml:"empty_history"`
+	EmptyPinned  string `toml:"empty_pinned"`
+	NoMatches    string `toml:"no_matches"`
 
 	// Text weight.
-	BoldSelected  bool `json:"boldSelected"`  // bold highlighted row
-	BoldActiveTab bool `json:"boldActiveTab"` // bold active tab
+	BoldSelected  bool `toml:"bold_selected"`   // bold highlighted row
+	BoldActiveTab bool `toml:"bold_active_tab"` // bold active tab
 }
 
 // TabKeys are the stable names of the tabs, in display order.

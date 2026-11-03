@@ -1,0 +1,155 @@
+# glyphs configuration.
+#
+# Every option is optional: leave it out (or commented out, as below) and the
+# built-in default is used. Uncomment a line to change it. Option names are
+# snake_case. If this file has a syntax error, the TUI starts on the defaults
+# and shows the problem in its Logs tab, and the clipboard listener refuses to
+# start (exit status 78) so it never records data your excluded_patterns would
+# have kept out.
+
+# ---- history ----------------------------------------------------------------
+
+# false: copying something already in the history moves the old entry to the
+# top (a pinned entry keeps its place and only refreshes its time).
+allow_duplicates = false
+
+# Maximum entries kept. Pinned entries never count against it. 0 = unlimited.
+max_history = 100
+
+# Delete unpinned entries older than this many seconds. 0 = never.
+delete_after = 0
+
+# Regular expressions: text that matches is never recorded.
+# Example: ["^sk-[A-Za-z0-9]+$"]
+excluded_patterns = []
+
+# Listener log, shown in the Logs tab. Absolute, "~", $VAR, or relative to
+# this directory.
+log_file = "glyphs.log"
+
+# ---- interface --------------------------------------------------------------
+
+# Characters of an entry shown in the clipboard list.
+max_entry_length = 65
+
+enable_mouse = true        # wheel scrolling, clicking the tabs
+enable_description = true  # second line (time, size) under every entry
+quit_after_copy = true     # exit after picking an item
+
+# Tab opened by default: "clipboard", "kaomoji", "emoji" or "logs".
+default_tab = "clipboard"
+
+# Tabs whose search box starts focused.
+search_on_open = ["emoji", "kaomoji"]
+
+# "auto", "sixel", "basic" or "off".
+image_preview = "auto"
+
+simple_emoji = false  # hide joined (ZWJ) emoji sequences; try it if your terminal garbles them
+emoji_columns = 16    # emoji per grid row; 0 = fill the window
+emoji_rows = 16       # emoji grid rows; 0 = fill the window
+
+# ---- keys -------------------------------------------------------------------
+# Each action takes a list of keys. Press "?" in the app to see them.
+# An empty list is ignored.
+
+[keys]
+# up = ["up", "k"]
+# down = ["down", "j"]
+# left = ["left", "h"]
+# right = ["right", "l"]
+# home = ["home", "g"]
+# end = ["end", "G"]
+# next_tab = ["tab"]
+# prev_tab = ["shift+tab"]
+# choose = ["enter"]
+# filter = ["/"]
+# preview = ["space"]
+# toggle_pin = ["p"]
+# toggle_pinned = ["ctrl+p"]
+# remove = ["x", "backspace", "delete"]
+# select_single = ["s"]
+# select_up = ["shift+up"]
+# select_down = ["shift+down"]
+# clear_selected = ["S"]
+# skin_tone = ["t"]
+# more = ["?"]
+# quit = ["q", "esc"]
+# force_quit = ["ctrl+c"]
+
+# ---- colours ----------------------------------------------------------------
+# Hex strings (or ANSI numbers), always quoted. The options after the first
+# block inherit from the colour named in their comment when left unset.
+
+[theme]
+# accent = "#7A9B76"           # active tab, pane titles, divider
+# accent_fg = "#090C09"        # text on accent
+# muted = "#BAC9BA"            # secondary text
+# text = "#BAC9BA"             # primary text
+# selected = "#090C09"         # highlighted row
+# selected_bg = "#7A7B76"      # highlighted row background
+# pin = "#6B8E9B"              # pin marker
+# multi = "#7A9B76"            # multi-select marker
+# status = "#7A9B76"           # status messages
+# error = "#B36A5E"            # errors
+# filter_prompt = "#7A9B76"    # the search prompt
+# inactive_tab_fg = "#BAC9BA"
+# inactive_tab_bg = "#2D3B2B"
+#
+# Optional, inherit when unset:
+# selected_desc = ""     # 2nd line of the highlighted row (selected)
+# selected_pin = ""      # pin marker on the highlighted row (selected)
+# selected_multi = ""    # select marker on the highlighted row (selected)
+# selected_dim = ""      # highlighted row, pane not focused (text)
+# selected_dim_bg = ""   # its background (selected_bg)
+# placeholder = ""       # search placeholder (muted)
+# filter_text = ""       # the query (text)
+# filter_cursor = ""     # the caret (filter_prompt)
+# filter_hint = ""       # "(esc clears)" (muted)
+# description = ""       # 2nd line of other rows (muted)
+# detail = ""            # detail line under the grids (muted)
+# divider = ""           # line between panes (accent)
+# pane_title = ""        # focused pane heading (accent)
+# pane_title_dim = ""    # unfocused pane heading (muted)
+# badge_listening = ""   # listener badge (status)
+# badge_paused = ""      # (pin)
+# badge_off = ""         # (muted)
+# help_key = ""          # help bar, empty = built-in grey
+# help_desc = ""
+# help_separator = ""
+
+# ---- text and markers -------------------------------------------------------
+# An option set to "" is honoured where it makes sense: pin_marker = "" hides
+# the marker, search_placeholder = "" shows none.
+# Placeholders: tab_format {n} {name}; search_idle {key}; selected_label {count}.
+
+[ui]
+# window_title = "Glyphs"
+# pin_marker = "🖈"
+# select_marker = "✓"
+# search_prompt = "❯ "
+# search_cursor = "▏"
+# search_placeholder = "type to search…"
+# search_idle = "press '{key}' for filter"
+# search_clear_hint = "   (esc clears)"
+# tab_format = "{n} {name}"
+# kaomoji_heading = "Categories"
+# emoji_heading = "Groups"
+# history_title = "History"
+# pinned_only = " · pinned only"
+# selected_label = " · {count} selected"
+# preview_title = "Preview"
+# divider = " │ "
+# badge_listening = "● listening"
+# badge_paused = "⏸ paused"
+# badge_off = "○ listener off"
+# empty_history = "History is empty. Run `glyphs listen` to start recording."
+# empty_pinned = "No pinned entries."
+# no_matches = "Nothing matches."
+# bold_selected = true
+# bold_active_tab = true
+
+[ui.tab_names]
+# clipboard = "Clipboard"
+# kaomoji = "Kaomoji"
+# emoji = "Emoji"
