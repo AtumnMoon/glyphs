@@ -15,6 +15,7 @@ type keyMap struct {
 	TogglePin, TogglePinned, Remove            key.Binding
 	SelectSingle, SelectUp, SelectDown, ClearS key.Binding
 	Home, End, Skin, More, Quit, ForceQuit     key.Binding
+	CycleLevel                                 key.Binding
 }
 
 // bind builds a binding for the action from config, labelling it in help with
@@ -69,6 +70,7 @@ func newKeyMap(cfg config.Config) keyMap {
 		More:         bind(cfg, "more", "", "more"),
 		Quit:         bind(cfg, "quit", "", "quit"),
 		ForceQuit:    bind(cfg, "force_quit", "", "force quit"),
+		CycleLevel:   bind(cfg, "cycle_level", "", "level"),
 	}
 }
 
@@ -103,6 +105,8 @@ func (t tabKeys) ShortHelp() []key.Binding {
 		return []key.Binding{nav, k.Choose, k.Filter, k.Preview, k.TogglePin, k.Remove, k.NextTab, k.More, k.Quit}
 	case tabEmoji:
 		return []key.Binding{nav, k.Choose, k.Filter, k.Skin, k.NextTab, k.More, k.Quit}
+	case tabLogs:
+		return []key.Binding{nav, k.Choose, k.Filter, k.CycleLevel, k.Preview, k.NextTab, k.More, k.Quit}
 	}
 	return []key.Binding{nav, k.Choose, k.Filter, k.NextTab, k.More, k.Quit}
 }
@@ -123,6 +127,8 @@ func (t tabKeys) FullHelp() [][]key.Binding {
 			[]key.Binding{k.SelectSingle, k.SelectUp, k.SelectDown, k.ClearS})
 	case tabEmoji:
 		cols = append(cols, []key.Binding{k.Skin})
+	case tabLogs:
+		cols = append(cols, []key.Binding{k.CycleLevel, k.Preview})
 	}
 	return append(cols, []key.Binding{k.More, k.Quit, k.ForceQuit})
 }

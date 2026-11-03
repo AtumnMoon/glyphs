@@ -8,17 +8,17 @@ import (
 )
 
 type styles struct {
-	tabActive, tabInactive            lipgloss.Style
-	text, muted, divider              lipgloss.Style
-	row, rowSel, rowSelDim            lipgloss.Style
-	rowSelDesc                        lipgloss.Style // 2nd line under the highlighted row
-	pin, multi, status, err, prompt   lipgloss.Style
-	selPin, selMulti                  lipgloss.Style // markers on the highlighted row
-	paneTitle, paneTitleDim, previewB lipgloss.Style
-	desc, detail                      lipgloss.Style // 2nd line of other rows, grid detail line
-	placeholder, filterText           lipgloss.Style
-	filterCursor, filterHint          lipgloss.Style
-	badgeOn, badgePaused, badgeOff    lipgloss.Style
+	tabActive, tabInactive                lipgloss.Style
+	text, muted, divider                  lipgloss.Style
+	row, rowSel, rowSelDim                lipgloss.Style
+	rowSelDesc                            lipgloss.Style // 2nd line under the highlighted row
+	pin, multi, status, err, warn, prompt lipgloss.Style
+	selPin, selMulti                      lipgloss.Style // markers on the highlighted row
+	paneTitle, paneTitleDim, previewB     lipgloss.Style
+	desc, detail                          lipgloss.Style // 2nd line of other rows, grid detail line
+	placeholder, filterText               lipgloss.Style
+	filterCursor, filterHint              lipgloss.Style
+	badgeOn, badgePaused, badgeOff        lipgloss.Style
 }
 
 func newStyles(theme config.Theme, ui config.UI) styles {
@@ -41,6 +41,7 @@ func newStyles(theme config.Theme, ui config.UI) styles {
 		selMulti:     base.Foreground(c(t.SelectedMulti)).Background(c(t.SelectedBg)).Bold(ui.BoldSelected),
 		status:       base.Foreground(c(t.Status)),
 		err:          base.Foreground(c(t.Error)),
+		warn:         base.Foreground(c(t.Warning)),
 		prompt:       base.Foreground(c(t.FilterPrompt)).Bold(true),
 		paneTitle:    base.Foreground(c(t.PaneTitle)).Bold(true),
 		paneTitleDim: base.Foreground(c(t.PaneTitleDim)).Bold(true),

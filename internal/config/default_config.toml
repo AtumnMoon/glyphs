@@ -73,6 +73,7 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # select_down = ["shift+down"]
 # clear_selected = ["S"]
 # skin_tone = ["t"]
+# cycle_level = ["L"]    # Logs tab: all, error, warn, info
 # more = ["?"]
 # quit = ["q", "esc"]
 # force_quit = ["ctrl+c"]
@@ -92,6 +93,7 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # multi = "#7A9B76"            # multi-select marker
 # status = "#7A9B76"           # status messages
 # error = "#B36A5E"            # errors
+# warning = "#C8A35E"          # warnings (Logs tab)
 # filter_prompt = "#7A9B76"    # the search prompt
 # inactive_tab_fg = "#BAC9BA"
 # inactive_tab_bg = "#2D3B2B"
@@ -121,7 +123,8 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # ---- text and markers -------------------------------------------------------
 # An option set to "" is honoured where it makes sense: pin_marker = "" hides
 # the marker, search_placeholder = "" shows none.
-# Placeholders: tab_format {n} {name}; search_idle {key}; selected_label {count}.
+# Placeholders: tab_format {n} {name}; search_idle {key}; selected_label {count};
+# logs_level {level}.
 
 [ui]
 # window_title = "Glyphs"
@@ -143,6 +146,10 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # badge_listening = "● listening"
 # badge_paused = "⏸ paused"
 # badge_off = "○ listener off"
+# badge_config = "⚠ config"
+# logs_title = "Logs"
+# logs_level = " · {level} only"
+# empty_logs = "No log entries yet. Start the listener with `glyphs listen`."
 # empty_history = "History is empty. Run `glyphs listen` to start recording."
 # empty_pinned = "No pinned entries."
 # no_matches = "Nothing matches."
@@ -153,3 +160,4 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # clipboard = "Clipboard"
 # kaomoji = "Kaomoji"
 # emoji = "Emoji"
+# logs = "Logs"

@@ -35,6 +35,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.reloadClip(false)
+		if m.tab == tabLogs {
+			m.reloadLogs(false)
+		}
 		cmd = tick()
 
 	case copiedMsg:
@@ -90,6 +93,8 @@ func (m *model) onKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case m.confirm != nil:
 		return m.onConfirm(msg)
+	case m.preview && m.tab == tabLogs:
+		return m.onLogPreviewKey(msg)
 	case m.preview:
 		return m.onPreviewKey(msg)
 	case m.typing:
@@ -190,6 +195,8 @@ func (m *model) onNormalKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.setStatus("Skin tone: "+skinNames[m.skin]+" (applies to emoji that have variants)", false)
 	case m.tab == tabClipboard:
 		m.onClipKey(msg)
+	case m.tab == tabLogs:
+		m.onLogKey(msg)
 	}
 	return nil
 }
@@ -227,6 +234,25 @@ func (m *model) navigate(dir string) {
 	}
 	if b := m.browser(); b != nil {
 		b.move(dir)
+		return
+	}
+	if m.tab == tabLogs {
+		l := m.logs
+		page := max(l.rowsVis-1, 1)
+		switch dir {
+		case "up":
+			l.move(-1)
+		case "down":
+			l.move(1)
+		case "left":
+			l.move(-page)
+		case "right":
+			l.move(page)
+		case "home":
+			l.cur.idx = 0
+		case "end":
+			l.cur.idx = max(len(l.view)-1, 0)
+		}
 		return
 	}
 	c := m.clip
@@ -396,6 +422,14 @@ func (m *model) choose() tea.Cmd {
 			text = it.glyph(m.skin)
 		}
 		return func() tea.Msg { return copiedMsg{label: text, err: m.deps.WriteText(text)} }
+	}
+
+	if m.tab == tabLogs {
+		e, ok := m.logs.current()
+		if !ok {
+			return nil
+		}
+		return func() tea.Msg { return copiedMsg{label: "log entry", err: m.deps.WriteText(e.Msg)} }
 	}
 
 	targets := m.clip.targets()

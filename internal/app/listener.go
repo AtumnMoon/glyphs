@@ -15,6 +15,7 @@ import (
 
 	"github.com/AtumnMoon/glyphs/internal/clipboard"
 	"github.com/AtumnMoon/glyphs/internal/config"
+	"github.com/AtumnMoon/glyphs/internal/logx"
 )
 
 // NewStore opens the history store from internal/clipboard. That package keeps
@@ -50,7 +51,8 @@ func Kill(cfg config.Config) (bool, error) {
 }
 
 // LaunchListener starts the listener as a detached background process,
-// replacing any previous one.
+// replacing any previous one. The child writes the log file itself (see
+// package logx), so its own stdout and stderr go nowhere.
 func LaunchListener(cfg config.Config) int {
 	// Check what the detached child would check, so a mistake is reported
 	// here, on the terminal, rather than into a log nobody is reading.
@@ -67,15 +69,7 @@ func LaunchListener(cfg config.Config) int {
 		fmt.Fprintln(os.Stderr, "error: locate executable:", err)
 		return 1
 	}
-	logf, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: open log:", err)
-		return 1
-	}
-	defer logf.Close()
-
 	cmd := exec.Command(exe, "listen", "--foreground")
-	cmd.Stdout, cmd.Stderr = logf, logf
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintln(os.Stderr, "error: start listener:", err)
@@ -86,29 +80,47 @@ func LaunchListener(cfg config.Config) int {
 	return 0
 }
 
+// LogError appends an error to the log file shown in the TUI's Logs tab. It is
+// best effort: for a command that is about to exit with that same error.
+func LogError(cfg config.Config, format string, a ...any) {
+	_ = logx.Append(cfg.LogFilePath, logx.Error, format, a...)
+}
+
 // RunListener runs the listener in the foreground until interrupted. It feeds
 // clipboard.Watch into the store's own Listen method, dropping data while
-// paused.
+// paused. Everything it reports goes to the log file, and also to stderr, which
+// is where a terminal or the systemd journal shows it.
 func RunListener(cfg config.Config) int {
+	lg, err := logx.Open(cfg.LogFilePath, os.Stderr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 1
+	}
+	defer lg.Close()
+	_ = lg.CaptureCrashes()
+	for _, w := range cfg.Warnings {
+		lg.Warnf("config: %s", w)
+	}
+
 	// An invalid exclusion pattern is a config error: refuse to run rather than
 	// record what the user meant to keep out.
 	policy, err := Policy(cfg)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		lg.Errorf("listener refused to start: %v", err)
 		return ExitConfig
 	}
 	store, err := NewStore(cfg)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		lg.Errorf("listener: %v", err)
 		return 1
 	}
 	if err := initClipboard(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		lg.Errorf("listener: %v", err)
 		return 1
 	}
 	inst, err := acquire(cfg.ListenerLockFile(), cfg.PIDFile(), "listener", false, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v; use `glyphs kill` first\n", err)
+		lg.Errorf("listener: %v; use `glyphs kill` first", err)
 		return 1
 	}
 	defer inst.release()
@@ -116,8 +128,9 @@ func RunListener(cfg config.Config) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	fmt.Fprintf(os.Stderr, "%s glyphs listener started (pid %d)\n", time.Now().Format(time.RFC3339), os.Getpid())
-	store.ListenWith(gate(gclip.Watch(ctx, gclip.FmtText, gclip.FmtImage), func() bool { return IsPaused(cfg) }), policy, os.Stderr)
+	lg.Infof("listener started (pid %d)", os.Getpid())
+	store.ListenWith(gate(gclip.Watch(ctx, gclip.FmtText, gclip.FmtImage), func() bool { return IsPaused(cfg) }), policy, lg.Writer(logx.Error))
+	lg.Infof("listener stopped")
 	return 0
 }
 

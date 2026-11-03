@@ -92,14 +92,14 @@ as systemd, see contrib/glyphs-listener.service).`,
 			if err := validTab(tab); err != nil {
 				return err
 			}
-			cfg, _, err := loadConfig(cmd, false)
+			cfg, cfgErr, err := loadConfig(cmd, false)
 			if err != nil {
 				return err
 			}
 			if keep {
 				cfg.QuitAfterCopy = false
 			}
-			return fromCode(app.LaunchTUI(cfg, tab))
+			return fromCode(app.LaunchTUI(cfg, tab, cfgErr))
 		},
 	}
 	root.SetVersionTemplate("{{.Name}} {{.Version}}\n")
@@ -145,6 +145,9 @@ func loadConfig(cmd *cobra.Command, strict bool) (cfg config.Config, cfgErr erro
 			var ce *config.Error
 			if errors.As(cfgErr, &ce) && ce.Context != "" {
 				msg += "\n\n" + ce.Context
+			}
+			if cmd.Name() == "listen" { // leave a trace for the Logs tab
+				app.LogError(cfg, "listener refused to start: %v", cfgErr)
 			}
 			return cfg, cfgErr, &exitError{code: exitConfig, msg: msg + "\nrefusing to run with an invalid config; fix it and try again"}
 		}

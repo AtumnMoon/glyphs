@@ -15,6 +15,7 @@ import (
 //	tab_format       {n} tab number, {name} tab name
 //	search_idle      {key} first key bound to "filter"
 //	selected_label   {count} number of selected entries
+//	logs_level       {level} the level being shown (info, warn, error)
 type UI struct {
 	WindowTitle string `toml:"window_title"` // terminal window title
 
@@ -29,7 +30,7 @@ type UI struct {
 	SearchIdle        string `toml:"search_idle"`        // not focused, no query
 	SearchClearHint   string `toml:"search_clear_hint"`  // after a kept query
 
-	// Tab bar. tab_names is keyed by clipboard | kaomoji | emoji.
+	// Tab bar. tab_names is keyed by clipboard | kaomoji | emoji | logs.
 	TabNames  map[string]string `toml:"tab_names"`
 	TabFormat string            `toml:"tab_format"`
 
@@ -46,6 +47,12 @@ type UI struct {
 	BadgeListening string `toml:"badge_listening"`
 	BadgePaused    string `toml:"badge_paused"`
 	BadgeOff       string `toml:"badge_off"`
+	BadgeConfig    string `toml:"badge_config"` // shown while the config file has problems
+
+	// Logs tab.
+	LogsTitle string `toml:"logs_title"`
+	LogsLevel string `toml:"logs_level"` // appended to the title while a level filter is on; {level}
+	EmptyLogs string `toml:"empty_logs"`
 
 	// Empty states.
 	EmptyHistory string `toml:"empty_history"`
@@ -58,7 +65,7 @@ type UI struct {
 }
 
 // TabKeys are the stable names of the tabs, in display order.
-var TabKeys = []string{"clipboard", "kaomoji", "emoji"}
+var TabKeys = []string{"clipboard", "kaomoji", "emoji", "logs"}
 
 // DefaultUI returns the built-in strings and markers.
 func DefaultUI() UI {
@@ -75,6 +82,7 @@ func DefaultUI() UI {
 			"clipboard": "Clipboard",
 			"kaomoji":   "Kaomoji",
 			"emoji":     "Emoji",
+			"logs":      "Logs",
 		},
 		TabFormat:      "{n} {name}",
 		KaomojiHeading: "Categories",
@@ -87,6 +95,10 @@ func DefaultUI() UI {
 		BadgeListening: "● listening",
 		BadgePaused:    "⏸ paused",
 		BadgeOff:       "○ listener off",
+		BadgeConfig:    "⚠ config",
+		LogsTitle:      "Logs",
+		LogsLevel:      " · {level} only",
+		EmptyLogs:      "No log entries yet. Start the listener with `glyphs listen`.",
 		EmptyHistory:   "History is empty. Run `glyphs listen` to start recording.",
 		EmptyPinned:    "No pinned entries.",
 		NoMatches:      "Nothing matches.",
@@ -109,7 +121,7 @@ func (u UI) resolve() UI {
 		&u.SearchPlaceholder, &u.SearchIdle, &u.SearchClearHint, &u.TabFormat,
 		&u.KaomojiHeading, &u.EmojiHeading, &u.HistoryTitle, &u.PinnedOnly,
 		&u.SelectedLabel, &u.PreviewTitle, &u.Divider, &u.BadgeListening,
-		&u.BadgePaused, &u.BadgeOff, &u.EmptyHistory, &u.EmptyPinned, &u.NoMatches,
+		&u.BadgePaused, &u.BadgeOff, &u.BadgeConfig, &u.LogsTitle, &u.LogsLevel, &u.EmptyLogs, &u.EmptyHistory, &u.EmptyPinned, &u.NoMatches,
 	} {
 		*p = oneLineText(*p)
 	}
@@ -119,6 +131,9 @@ func (u UI) resolve() UI {
 	}
 	if strings.TrimSpace(u.HistoryTitle) == "" {
 		u.HistoryTitle = d.HistoryTitle
+	}
+	if strings.TrimSpace(u.LogsTitle) == "" {
+		u.LogsTitle = d.LogsTitle
 	}
 	// Tab names: start from the defaults, accept non-blank overrides for known
 	// tabs only (case-insensitive keys).

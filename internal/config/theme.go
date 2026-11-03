@@ -22,6 +22,7 @@ type Theme struct {
 	Multi         string `toml:"multi"`         // multi-select marker
 	Status        string `toml:"status"`        // status messages
 	Error         string `toml:"error"`         // error messages
+	Warning       string `toml:"warning"`       // warnings (Logs tab)
 	FilterPrompt  string `toml:"filter_prompt"` // "/" prompt
 	InactiveTabFg string `toml:"inactive_tab_fg"`
 	InactiveTabBg string `toml:"inactive_tab_bg"`
@@ -71,6 +72,7 @@ func DefaultTheme() Theme {
 		Multi:         "#7A9B76", // Sage Green
 		Status:        "#7A9B76", // Sage Green
 		Error:         "#B36A5E", // Teracotta Clay
+		Warning:       "#C8A35E", // Ochre
 		FilterPrompt:  "#7A9B76", // Sage Green
 		InactiveTabFg: "#BAC9BA", // Ash Gray
 		InactiveTabBg: "#2D3B2B", // Charcoal Brown

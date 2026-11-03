@@ -7,7 +7,7 @@ This is an extemely customized one for me but if you wanna use, feel free.
 
 ```
 glyphs                      # open the TUI
-glyphs --tab emoji          # open on a given tab (clipboard | kaomoji | emoji)
+glyphs --tab emoji          # open on a given tab (clipboard | kaomoji | emoji | logs)
 glyphs listen               # record clipboard changes in the background
 ```
 
@@ -18,6 +18,25 @@ glyphs listen               # record clipboard changes in the background
 | **Clipboard** | History list (opens first). Pin, multi-select, delete, fuzzy search, live updates. `Space` opens a full-pane preview. |
 | **Kaomoji** | Category list + grid. |
 | **Emoji** | Group list + grid, `t` cycles skin tone. Search box is focused when the tab opens. |
+| **Logs** | What the listener has been doing, and what is wrong with your config. Filter by level (`L`) or by words (`/`). |
+
+### Logs
+
+The listener writes its own log file (`log_file`, default `glyphs.log` in the
+config dir; it rotates at 1 MiB), whether you started it with `glyphs listen`
+or under systemd, so this tab works either way. Newest entries are on top and
+the tab updates live. A cursor on the first row follows new entries, like
+`tail -f`.
+
+- `L` cycles the level: all → error → warn → info. Only that level is listed.
+- `/` filters by words: every word must appear (case-insensitive) in the message
+  or the level, so `refused config` finds the line explaining why the listener did
+  not start, and `error` finds every error.
+- `Space` opens the whole message, wrapped; `Enter` copies it.
+- Problems with your `config.toml` (the error, or warnings such as an unknown
+  option) are listed first, and a `⚠ config` badge appears in the clipboard
+  header while there are any. Open this tab to read them.
+- If the listener refuses to start because of the config, it logs why here too.
 
 ### Clipboard preview
 Closed by default. `Space` opens it over the whole pane, like clipse: `↑↓`
@@ -26,7 +45,7 @@ or `Esc` closes. Images are drawn as a real bitmap in terminals that support
 sixel (foot, WezTerm, mlterm, ...). glyphs asks the terminal at startup, so no
 setup is needed. Elsewhere it falls back to a half-block approximation.
 
-Set `imagePreview` to `sixel`, `basic` or `off` to force a mode. Default is `auto`.
+Set `image_preview` to `sixel`, `basic` or `off` to force a mode. Default is `auto`.
 
 ### Keys
 All rebindable (press `?` in the app).

@@ -174,3 +174,21 @@ func TestAddRecordsWithAValidConfig(t *testing.T) {
 		t.Errorf("add: code %d, stderr %q", code, se)
 	}
 }
+
+// The Logs tab is where a refused listener gets explained: the refusal must
+// reach the log file, not only the terminal that is already gone under systemd.
+func TestRefusedListenerLeavesATraceInTheLog(t *testing.T) {
+	code, _, _ := runWithConfig(t, "max_history = \n", "listen", "--foreground")
+	if code != exitConfig {
+		t.Fatalf("code %d", code)
+	}
+	b, err := os.ReadFile(filepath.Join(os.Getenv("GLYPHS_CONFIG_DIR"), "glyphs.log"))
+	if err != nil {
+		t.Fatalf("no log written: %v", err)
+	}
+	for _, want := range []string{" ERROR ", "listener refused to start", "config.toml:1"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("log is missing %q:\n%s", want, b)
+		}
+	}
+}

@@ -63,12 +63,13 @@ func (m *model) layout() {
 			b.gridRows = min(b.gridRows, b.maxRows)
 		}
 		b.groupRows = max(g.bodyH-1, 1)
-	case tabClipboard:
+	case tabClipboard, tabLogs:
 		g.rowsPerItem = 1
 		if m.cfg.EnableDescription {
 			g.rowsPerItem = 2
 		}
 		m.clip.rowsVis = max((g.bodyH-1)/g.rowsPerItem, 1)
+		m.logs.rowsVis = m.clip.rowsVis
 	}
 	m.g = g
 }
@@ -77,6 +78,19 @@ func (m *model) fixCursors() {
 	if b := m.browser(); b != nil {
 		b.gcur.fix(len(b.vis), b.gcur.idx, b.groupRows)
 		b.icur.fix(len(b.shown), b.icur.idx/b.cols0(), b.gridRows)
+		return
+	}
+	if m.tab == tabLogs {
+		l := m.logs
+		l.cur.fix(len(l.view), l.cur.idx, l.rowsVis)
+		if m.preview {
+			e, ok := l.current()
+			if !ok {
+				m.preview = false
+				return
+			}
+			l.prevOff = clamp(l.prevOff, 0, max(len(m.logLines(e, m.width))-m.previewRows(), 0))
+		}
 		return
 	}
 	c := m.clip
@@ -112,6 +126,10 @@ func (m *model) View() tea.View {
 
 	var body []string
 	switch {
+	case m.tab == tabLogs && m.preview:
+		body = m.viewLogPreview()
+	case m.tab == tabLogs:
+		body = padLines(m.viewLogList(m.width), m.g.bodyH)
 	case m.tab == tabClipboard && m.preview:
 		body = m.viewPreview()
 	case m.tab == tabClipboard:
@@ -153,7 +171,7 @@ func (m *model) viewTabs() string {
 			w = m.width - used
 		}
 		used += w
-		label := m.tabLabels[i]
+		label := ansi.Truncate(m.tabLabels[i], w, "…") // a narrow window must not overflow the bar
 		pad := max(w-ansi.StringWidth(label), 0)
 		cell := strings.Repeat(" ", pad/2) + label + strings.Repeat(" ", pad-pad/2)
 		if tabID(i) == m.tab {
@@ -343,7 +361,7 @@ func (m *model) viewClipList(w int) []string {
 		head += strings.ReplaceAll(ui.SelectedLabel, "{count}", strconv.Itoa(n))
 	}
 	var lines []string
-	if badge := m.listenerBadge(); ansi.StringWidth(badge) > 0 {
+	if badge := m.headerBadges(); ansi.StringWidth(badge) > 0 {
 		hw := w - ansi.StringWidth(badge) - 1
 		lines = []string{m.st.paneTitle.Render(fit(head, hw)) + " " + badge}
 	} else {

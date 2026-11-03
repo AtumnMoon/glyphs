@@ -123,6 +123,7 @@ func DefaultKeyBindings() map[string][]string {
 		"home":           {"home", "g"},
 		"end":            {"end", "G"},
 		"skin_tone":      {"t"},
+		"cycle_level":    {"L"},
 		"more":           {"?"},
 		"quit":           {"q", "esc"},
 		"force_quit":     {"ctrl+c"},
@@ -247,7 +248,11 @@ var typeErr = regexp.MustCompile(`^toml: line (\d+) \(last key "([^"]*)"\): (.*)
 func newError(path, src string, err error) *Error {
 	var pe toml.ParseError
 	if errors.As(err, &pe) {
-		return &Error{Path: path, Line: pe.Position.Line, Col: pe.Position.Col, Msg: pe.Message, Context: pe.ErrorWithPosition()}
+		ctx := pe.ErrorWithPosition()
+		if i := strings.Index(ctx, "At line"); i >= 0 { // drop the header that repeats Msg
+			ctx = strings.TrimRight(ctx[i:], "\n")
+		}
+		return &Error{Path: path, Line: pe.Position.Line, Col: pe.Position.Col, Msg: pe.Message, Context: ctx}
 	}
 	if m := typeErr.FindStringSubmatch(err.Error()); m != nil {
 		line, _ := strconv.Atoi(m[1])

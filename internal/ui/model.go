@@ -15,6 +15,7 @@ import (
 	"github.com/AtumnMoon/glyphs/internal/clipboard"
 	"github.com/AtumnMoon/glyphs/internal/config"
 	"github.com/AtumnMoon/glyphs/internal/data"
+	"github.com/AtumnMoon/glyphs/internal/logx"
 )
 
 type tabID int
@@ -23,9 +24,10 @@ const (
 	tabClipboard tabID = iota
 	tabKaomoji
 	tabEmoji
+	tabLogs
 )
 
-var tabNames = []string{"Clipboard", "Kaomoji", "Emoji"}
+var tabNames = []string{"Clipboard", "Kaomoji", "Emoji", "Logs"}
 
 func (t tabID) key() string { return strings.ToLower(tabNames[t]) }
 
@@ -45,6 +47,13 @@ type Deps struct {
 	// Optional status probes for the clipboard tab header.
 	ListenerRunning func() bool
 	Paused          func() bool
+
+	// The Logs tab: Logs returns up to n entries from the end of the log file,
+	// newest first (LogModTime is polled to notice new ones). Problems are the
+	// config errors and warnings found at startup, listed above the file.
+	Logs       func(n int) ([]logx.Entry, error)
+	LogModTime func() time.Time
+	Problems   []logx.Entry
 }
 
 type (
@@ -84,6 +93,7 @@ type model struct {
 
 	kao, emo *browser
 	clip     *clipState
+	logs     *logState
 	skin     int // 0 = default, 1..5 = skin tone
 
 	// Terminal capabilities, learned from replies to queries sent at startup.
@@ -115,6 +125,7 @@ func New(d Deps, startTab string) tea.Model {
 		kao:  buildKaomoji(d.Kaomoji),
 		emo:  buildEmoji(d.Emoji, cfg.SimpleEmoji),
 		clip: newClipState(),
+		logs: newLogState(d.Problems),
 	}
 	m.tabLabels = tabLabels(cfg.UI)
 	m.divW = ansi.StringWidth(cfg.UI.Divider)
@@ -123,6 +134,8 @@ func New(d Deps, startTab string) tea.Model {
 		m.tab = tabEmoji
 	case "kaomoji":
 		m.tab = tabKaomoji
+	case "logs":
+		m.tab = tabLogs
 	default:
 		m.tab = tabClipboard
 	}
@@ -132,6 +145,7 @@ func New(d Deps, startTab string) tea.Model {
 	m.emo.maxCol, m.emo.maxRows = cfg.EmojiColumns, cfg.EmojiRows
 	m.typing = m.searchOnOpen(m.tab)
 	m.reloadClip(true)
+	m.reloadLogs(true)
 	return m
 }
 
@@ -211,6 +225,10 @@ func (m *model) applyQuery() {
 		b.refresh(m.query)
 		return
 	}
+	if m.tab == tabLogs {
+		m.logs.apply(m.query)
+		return
+	}
 	m.clip.apply(m.query)
 }
 
@@ -225,5 +243,9 @@ func (m *model) switchTab(t tabID) {
 	if t == tabClipboard {
 		m.reloadClip(true)
 	}
+	if t == tabLogs {
+		m.reloadLogs(true)
+	}
+	m.logs.apply("")
 	m.clip.apply("")
 }

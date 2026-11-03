@@ -63,6 +63,12 @@ type harness struct {
 
 func newHarness(t *testing.T, startTab string, mut func(*config.Config)) *harness {
 	t.Helper()
+	return newHarnessWith(t, startTab, mut, nil)
+}
+
+// newHarnessWith is newHarness that can also adjust the UI's dependencies.
+func newHarnessWith(t *testing.T, startTab string, mut func(*config.Config), mutDeps func(*Deps)) *harness {
+	t.Helper()
 	dir := t.TempDir()
 	cfg := config.Default()
 	cfg.Dir = dir
@@ -78,7 +84,7 @@ func newHarness(t *testing.T, startTab string, mut func(*config.Config)) *harnes
 	sys := &fakeSys{}
 	h := &harness{t: t, sys: sys, hist: hist}
 	histFile := filepath.Join(dir, "clipboard_history.json")
-	h.m = New(Deps{
+	deps := Deps{
 		Config: cfg, Kaomoji: kao, Emoji: emo, History: hist,
 		WriteText: sys.WriteText, WriteImage: sys.WriteImage,
 		ModTime: func() time.Time {
@@ -88,7 +94,11 @@ func newHarness(t *testing.T, startTab string, mut func(*config.Config)) *harnes
 			}
 			return fi.ModTime()
 		},
-	}, startTab)
+	}
+	if mutDeps != nil {
+		mutDeps(&deps)
+	}
+	h.m = New(deps, startTab)
 	h.send(tea.WindowSizeMsg{Width: 110, Height: 32})
 	return h
 }
@@ -386,11 +396,15 @@ func TestTabSwitching(t *testing.T) {
 		t.Fatalf("emoji should open with the search focused: tab=%d typing=%v", h.model().tab, h.model().typing)
 	}
 	h.press("tab")
+	if h.model().tab != tabLogs {
+		t.Fatalf("the Logs tab comes after Emoji, got %d", h.model().tab)
+	}
+	h.press("tab")
 	if h.model().tab != tabClipboard {
 		t.Errorf("tab should wrap, got %d", h.model().tab)
 	}
 	h.press("shift+tab")
-	if h.model().tab != tabEmoji {
+	if h.model().tab != tabLogs {
 		t.Errorf("shift+tab should go back, got %d", h.model().tab)
 	}
 }
@@ -656,7 +670,7 @@ func TestPreviewEnterCopiesAndEscCloses(t *testing.T) {
 }
 func TestViewNeverOverflows(t *testing.T) {
 	sizes := [][2]int{{40, 12}, {60, 20}, {80, 24}, {110, 32}, {200, 50}}
-	for _, tabName := range []string{"kaomoji", "emoji", "clipboard"} {
+	for _, tabName := range []string{"kaomoji", "emoji", "clipboard", "logs"} {
 		for _, sz := range sizes {
 			h := newHarness(t, tabName, nil)
 			seed(t, h, "short", strings.Repeat("a long clipboard line ", 20), "multi\nline\nentry")
