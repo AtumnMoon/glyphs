@@ -29,10 +29,10 @@ type geom struct {
 // layout recomputes geometry and pushes the pane sizes into the tab states so
 // navigation (which runs before the next render) uses current numbers.
 func (m *model) layout() {
-	helpKey := fmt.Sprintf("%d|%v|%v|%v|%d", m.tab, m.help.ShowAll, m.preview, m.typing, m.width)
+	helpKey := fmt.Sprintf("%d|%v|%v|%v|%d|%d", m.tab, m.help.ShowAll, m.preview, m.typing, m.width, m.mode)
 	if helpKey != m.helpKey {
 		m.helpKey = helpKey
-		keys := tabKeys{k: m.keys, tab: m.tab, preview: m.preview, typing: m.typing}
+		keys := tabKeys{k: m.keys, tab: m.tab, preview: m.preview, typing: m.typing, mode: m.mode}
 		m.helpView = m.clipHelp(m.help.View(keys))
 		m.helpH = lipgloss.Height(m.helpView)
 		// On a short terminal the expanded help would crowd out the content:
@@ -359,6 +359,12 @@ func (m *model) viewClipList(w int) []string {
 	}
 	if n := len(c.selected); n > 0 {
 		head += strings.ReplaceAll(ui.SelectedLabel, "{count}", strconv.Itoa(n))
+	}
+	switch m.mode {
+	case modeSelect:
+		head += ui.ModeSelect
+	case modeMove:
+		head += ui.ModeMove
 	}
 	var lines []string
 	if badge := m.headerBadges(); ansi.StringWidth(badge) > 0 {

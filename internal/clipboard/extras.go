@@ -49,7 +49,8 @@ func (p Policy) excluded(text string) bool {
 }
 
 // RecordText records text per policy. Blank or excluded text is skipped
-// (ok=false). A repeated value moves to the top and keeps its pinned state.
+// (ok=false). A repeated value moves to the top and keeps its pinned state,
+// except that a pinned one stays where it is (see replaceDuplicate).
 func (s *HistoryStore) RecordText(value string, p Policy) (entry ClipboardEntry, ok bool, err error) {
 	value = sanitizeText(value)
 	if value == "" || p.excluded(value) {
@@ -57,14 +58,8 @@ func (s *HistoryStore) RecordText(value string, p Policy) (entry ClipboardEntry,
 	}
 	entry = ClipboardEntry{Value: value, Recorded: recordedNow(), FilePath: "null"}
 	err = s.edit(func(h *history) {
-		if !p.AllowDuplicates {
-			for i, e := range h.ClipboardHistory {
-				if !e.IsImage() && e.Value == value {
-					entry.Pinned = e.Pinned
-					h.ClipboardHistory = append(h.ClipboardHistory[:i], h.ClipboardHistory[i+1:]...)
-					break
-				}
-			}
+		if !p.AllowDuplicates && replaceDuplicate(h, &entry, func(e ClipboardEntry) bool { return !e.IsImage() && e.Value == value }) {
+			return
 		}
 		s.prepend(h, entry)
 	})
@@ -86,18 +81,33 @@ func (s *HistoryStore) RecordImage(img []byte, p Policy) (entry ClipboardEntry, 
 	}
 	entry = ClipboardEntry{Value: path, Recorded: recordedNow(), FilePath: path}
 	err = s.edit(func(h *history) {
-		if !p.AllowDuplicates {
-			for i, e := range h.ClipboardHistory {
-				if e.IsImage() && e.FilePath == path {
-					entry.Pinned = e.Pinned
-					h.ClipboardHistory = append(h.ClipboardHistory[:i], h.ClipboardHistory[i+1:]...)
-					break
-				}
-			}
+		if !p.AllowDuplicates && replaceDuplicate(h, &entry, func(e ClipboardEntry) bool { return e.IsImage() && e.FilePath == path }) {
+			return
 		}
 		s.prepend(h, entry)
 	})
 	return entry, err == nil, err
+}
+
+// replaceDuplicate handles recording something that is already in the history.
+// An unpinned duplicate is removed (the caller then prepends the new entry,
+// which inherits nothing). A pinned one is curated, possibly by hand (see
+// Reorder), so it keeps its position: it is updated in place with the new time
+// and replaceDuplicate reports true, meaning there is nothing left to prepend.
+func replaceDuplicate(h *history, entry *ClipboardEntry, same func(ClipboardEntry) bool) (inPlace bool) {
+	for i, e := range h.ClipboardHistory {
+		if !same(e) {
+			continue
+		}
+		if e.Pinned {
+			entry.Pinned = true
+			h.ClipboardHistory[i] = *entry
+			return true
+		}
+		h.ClipboardHistory = append(h.ClipboardHistory[:i], h.ClipboardHistory[i+1:]...)
+		return false
+	}
+	return false
 }
 
 // edit loads, mutates and saves the history under the lock.

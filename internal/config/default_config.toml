@@ -74,6 +74,10 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # clear_selected = ["S"]
 # skin_tone = ["t"]
 # cycle_level = ["L"]    # Logs tab: all, error, warn, info
+# select_mode = ["v"]    # clipboard: movement extends the selection
+# move_mode = ["m"]      # clipboard: movement carries the entry; reorders the list
+# mode_exit = ["esc"]    # leave select mode, or cancel move mode
+# move_confirm = ["enter"]  # move mode: save the new order
 # more = ["?"]
 # quit = ["q", "esc"]
 # force_quit = ["ctrl+c"]
@@ -140,6 +144,8 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # emoji_heading = "Groups"
 # history_title = "History"
 # pinned_only = " · pinned only"
+# mode_select = " · SELECT"
+# mode_move = " · MOVE"
 # selected_label = " · {count} selected"
 # preview_title = "Preview"
 # divider = " │ "

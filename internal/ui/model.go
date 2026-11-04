@@ -94,7 +94,15 @@ type model struct {
 	kao, emo *browser
 	clip     *clipState
 	logs     *logState
-	skin     int // 0 = default, 1..5 = skin tone
+
+	// Clipboard-tab input modes (see modes.go).
+	mode        mode
+	selAnchor   string          // select mode: key of the entry the selection grows from
+	selBase     map[string]bool // select mode: the selection from before the mode began
+	moveOrig    []clipboard.ClipboardEntry
+	moveTargets map[string]bool // move mode: keys of the entries being carried
+	moved       bool            // move mode: the order differs from moveOrig
+	skin        int             // 0 = default, 1..5 = skin tone
 
 	// Terminal capabilities, learned from replies to queries sent at startup.
 	sixelOK        bool
@@ -202,6 +210,9 @@ func (m *model) reloadClip(force bool) {
 	if m.deps.History == nil {
 		return
 	}
+	if m.mode == modeMove {
+		return // the list on screen is a draft; refreshing would throw it away
+	}
 	mt := m.deps.ModTime()
 	if !force && mt.Equal(m.clip.modTime) {
 		return
@@ -233,6 +244,7 @@ func (m *model) applyQuery() {
 }
 
 func (m *model) switchTab(t tabID) {
+	m.leaveModes()
 	m.tab = t
 	m.query = ""
 	m.typing = m.searchOnOpen(t)

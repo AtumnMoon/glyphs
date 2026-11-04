@@ -97,10 +97,14 @@ func (m *model) onKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.onLogPreviewKey(msg)
 	case m.preview:
 		return m.onPreviewKey(msg)
+	case m.mode == modeMove:
+		return m.onMoveKey(msg)
 	case m.typing:
 		return m.onTypingKey(msg)
 	}
-	return m.onNormalKey(msg)
+	cmd := m.onNormalKey(msg)
+	m.syncMode()
+	return cmd
 }
 
 func (m *model) nextTab(delta int) {
@@ -143,6 +147,9 @@ func (m *model) onTypingKey(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (m *model) setQuery(q string) {
+	if m.mode == modeSelect {
+		m.exitSelect() // the rows the anchor refers to are about to change
+	}
 	m.query = q
 	m.applyQuery()
 }
@@ -161,6 +168,16 @@ func (m *model) onConfirm(msg tea.KeyPressMsg) tea.Cmd {
 func (m *model) onNormalKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := m.keys
 	switch {
+	case m.mode == modeSelect && key.Matches(msg, k.ModeExit):
+		m.exitSelect()
+	case key.Matches(msg, k.SelectMode) && m.tab == tabClipboard:
+		if m.mode == modeSelect {
+			m.exitSelect()
+		} else {
+			m.enterSelect()
+		}
+	case key.Matches(msg, k.MoveMode) && m.tab == tabClipboard:
+		m.enterMove()
 	case key.Matches(msg, k.Quit):
 		if m.query != "" {
 			m.setQuery("")
@@ -229,7 +246,7 @@ func (m *model) onPreviewKey(msg tea.KeyPressMsg) tea.Cmd {
 
 // navigate moves the cursor of whichever pane is active.
 func (m *model) navigate(dir string) {
-	if m.preview {
+	if m.preview || m.mode == modeMove { // move mode owns the arrows (onMoveKey)
 		return
 	}
 	if b := m.browser(); b != nil {
@@ -270,6 +287,9 @@ func (m *model) navigate(dir string) {
 		c.cur.idx = 0
 	case "end":
 		c.cur.idx = max(len(c.view)-1, 0)
+	}
+	if m.mode == modeSelect {
+		m.extendSelection()
 	}
 }
 

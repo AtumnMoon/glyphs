@@ -9,13 +9,14 @@ import (
 )
 
 type keyMap struct {
-	Up, Down, Left, Right                      key.Binding
-	NextTab, PrevTab                           key.Binding
-	Choose, Filter, Preview                    key.Binding
-	TogglePin, TogglePinned, Remove            key.Binding
-	SelectSingle, SelectUp, SelectDown, ClearS key.Binding
-	Home, End, Skin, More, Quit, ForceQuit     key.Binding
-	CycleLevel                                 key.Binding
+	Up, Down, Left, Right                       key.Binding
+	NextTab, PrevTab                            key.Binding
+	Choose, Filter, Preview                     key.Binding
+	TogglePin, TogglePinned, Remove             key.Binding
+	SelectSingle, SelectUp, SelectDown, ClearS  key.Binding
+	Home, End, Skin, More, Quit, ForceQuit      key.Binding
+	CycleLevel                                  key.Binding
+	SelectMode, MoveMode, ModeExit, MoveConfirm key.Binding
 }
 
 // bind builds a binding for the action from config, labelling it in help with
@@ -71,6 +72,10 @@ func newKeyMap(cfg config.Config) keyMap {
 		Quit:         bind(cfg, "quit", "", "quit"),
 		ForceQuit:    bind(cfg, "force_quit", "", "force quit"),
 		CycleLevel:   bind(cfg, "cycle_level", "", "level"),
+		SelectMode:   bind(cfg, "select_mode", "", "select mode"),
+		MoveMode:     bind(cfg, "move_mode", "", "move mode"),
+		ModeExit:     bind(cfg, "mode_exit", "", "leave mode"),
+		MoveConfirm:  bind(cfg, "move_confirm", "", "save order"),
 	}
 }
 
@@ -79,6 +84,7 @@ type tabKeys struct {
 	k       keyMap
 	tab     tabID
 	preview bool // clipboard preview is open
+	mode    mode
 	typing  bool // search box has focus
 }
 
@@ -86,6 +92,18 @@ func (t tabKeys) ShortHelp() []key.Binding {
 	k := t.k
 	nav := key.NewBinding(key.WithKeys("up", "down", "left", "right"), key.WithHelp("↑↓←→", "navigate"))
 	switch {
+	case t.mode == modeMove:
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "carry")),
+			key.NewBinding(key.WithKeys("home", "end"), key.WithHelp("home/end", "to top/bottom")),
+			k.MoveConfirm, k.ModeExit,
+		}
+	case t.mode == modeSelect:
+		done := key.NewBinding(key.WithKeys("v", "esc"), key.WithHelp(k.SelectMode.Help().Key+"/"+k.ModeExit.Help().Key, "done"))
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "extend")),
+			k.Choose, k.TogglePin, k.Remove, k.MoveMode, done,
+		}
 	case t.preview:
 		// Same hints as clipse's preview: arrows scroll, Enter copies.
 		return []key.Binding{
@@ -102,7 +120,7 @@ func (t tabKeys) ShortHelp() []key.Binding {
 	}
 	switch t.tab {
 	case tabClipboard:
-		return []key.Binding{nav, k.Choose, k.Filter, k.Preview, k.TogglePin, k.Remove, k.NextTab, k.More, k.Quit}
+		return []key.Binding{nav, k.Choose, k.Filter, k.Preview, k.TogglePin, k.Remove, k.SelectMode, k.MoveMode, k.NextTab, k.More, k.Quit}
 	case tabEmoji:
 		return []key.Binding{nav, k.Choose, k.Filter, k.Skin, k.NextTab, k.More, k.Quit}
 	case tabLogs:
@@ -113,7 +131,7 @@ func (t tabKeys) ShortHelp() []key.Binding {
 
 func (t tabKeys) FullHelp() [][]key.Binding {
 	k := t.k
-	if t.preview || t.typing {
+	if t.preview || t.typing || t.mode != modeNormal {
 		return [][]key.Binding{t.ShortHelp()}
 	}
 	cols := [][]key.Binding{
@@ -124,7 +142,8 @@ func (t tabKeys) FullHelp() [][]key.Binding {
 	case tabClipboard:
 		cols = append(cols,
 			[]key.Binding{k.Preview, k.TogglePin, k.TogglePinned, k.Remove},
-			[]key.Binding{k.SelectSingle, k.SelectUp, k.SelectDown, k.ClearS})
+			[]key.Binding{k.SelectMode, k.SelectSingle, k.SelectUp, k.SelectDown, k.ClearS},
+			[]key.Binding{k.MoveMode})
 	case tabEmoji:
 		cols = append(cols, []key.Binding{k.Skin})
 	case tabLogs:

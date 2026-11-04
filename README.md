@@ -59,6 +59,31 @@ All rebindable (press `?` in the app).
 - `x` / `Backspace` delete (asks first for pinned)
 - `s` / `Shift+↑↓` multi-select
 - `Space` preview.
+- `v` select mode, `m` move mode (below).
+
+### Modes (clipboard tab)
+
+Modelled on Helix: the same movement keys do different things depending on the
+mode, and the header shows which one you are in. Normal mode is what you start
+in.
+
+| Mode | Enter | What the arrows do | Leave |
+| --- | --- | --- | --- |
+| **Normal** | | move the cursor | |
+| **Select** | `v` | extend the selection from where you pressed `v` (moving back shrinks it) | `v` or `Esc`; the selection is kept |
+| **Move** | `m` | carry the highlighted entry, or the whole selection, up and down; `Home`/`End` send it to the top/bottom | `Enter` saves the order, `Esc` throws it away |
+
+In select mode the usual commands work on the selection (`Enter` copies, `p`
+pins, `x` deletes, `m` moves). A selection you had before pressing `v` is kept.
+
+Move mode edits a draft in memory and writes the history once, on `Enter`, so
+there is nothing to undo and a refresh cannot clobber it. If the listener
+records something meanwhile, the new entry is kept at the top when you save.
+Move mode needs an unfiltered list; in the pinned-only view an entry hops over
+the hidden ones, so the order you see is the order you get. A pinned entry
+that you copy again keeps its place instead of jumping to the top, so an order
+you arranged by hand lasts. (Unpinned entries still move to the top when copied
+again, unless `allow_duplicates` is on.)
 
 ## CLI
 

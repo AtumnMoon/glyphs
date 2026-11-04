@@ -39,6 +39,8 @@ type UI struct {
 	EmojiHeading   string `toml:"emoji_heading"`
 	HistoryTitle   string `toml:"history_title"`
 	PinnedOnly     string `toml:"pinned_only"`    // appended to the title in pinned-only mode
+	ModeSelect     string `toml:"mode_select"`    // appended to the history title in select mode
+	ModeMove       string `toml:"mode_move"`      // ... and in move mode
 	SelectedLabel  string `toml:"selected_label"` // appended to the title while multi-selecting
 	PreviewTitle   string `toml:"preview_title"`
 	Divider        string `toml:"divider"`
@@ -89,6 +91,8 @@ func DefaultUI() UI {
 		EmojiHeading:   "Groups",
 		HistoryTitle:   "History",
 		PinnedOnly:     " · pinned only",
+		ModeSelect:     " · SELECT",
+		ModeMove:       " · MOVE",
 		SelectedLabel:  " · {count} selected",
 		PreviewTitle:   "Preview",
 		Divider:        " │ ",

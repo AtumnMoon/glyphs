@@ -53,7 +53,8 @@ func TestRecordTextDedupeKeepsPin(t *testing.T) {
 	_ = all
 	s.RecordText("one", p)
 	got, _ := s.All()
-	if len(got) != 2 || got[0].Value != "one" || !got[0].Pinned {
+	// "one" is pinned, so re-copying it keeps its place (index 1) and pin.
+	if len(got) != 2 || got[1].Value != "one" || !got[1].Pinned || got[0].Value != "two" {
 		t.Errorf("dedupe/pin: %+v", got)
 	}
 	if _, ok, _ := s.RecordText("  \x00 ", p); ok {
@@ -161,5 +162,45 @@ func TestListenWithAppliesPolicy(t *testing.T) {
 	all, _ := s.All()
 	if len(all) != 3 || !all[0].IsImage() || all[1].Value != "a" || all[2].Value != "b" {
 		t.Errorf("unexpected history: %+v", all)
+	}
+}
+
+// An unpinned entry that is copied again jumps to the top; a pinned one is
+// curated and keeps its position, only refreshing its time.
+func TestPinnedDuplicateStaysPutUnpinnedJumps(t *testing.T) {
+	s := newStore(t, 0)
+	p := Policy{}
+	for _, v := range []string{"c", "b", "a"} { // history: a b c
+		s.RecordText(v, p)
+	}
+	s.Pin(2, true) // "c"
+	s.RecordText("c", p)
+	if got := vals(t, s); !same(got, []string{"a", "b", "c"}) {
+		t.Fatalf("a pinned duplicate must not move: %v", got)
+	}
+	all, _ := s.All()
+	if !all[2].Pinned {
+		t.Error("the pin must survive")
+	}
+	s.RecordText("b", p) // unpinned: moves to the top
+	if got := vals(t, s); !same(got, []string{"b", "a", "c"}) {
+		t.Errorf("an unpinned duplicate moves to the top: %v", got)
+	}
+	if got := vals(t, s); len(got) != 3 {
+		t.Errorf("no duplicates may remain: %v", got)
+	}
+}
+
+func TestPinnedImageDuplicateStaysPut(t *testing.T) {
+	s := newStore(t, 0)
+	p := Policy{}
+	img1, img2 := []byte("image-one"), []byte("image-two")
+	s.RecordImage(img1, p)
+	s.RecordImage(img2, p) // history: img2 img1
+	s.Pin(1, true)         // img1
+	s.RecordImage(img1, p)
+	all, _ := s.All()
+	if len(all) != 2 || !all[1].Pinned || all[1].Value == all[0].Value {
+		t.Errorf("pinned image must keep its place: %+v", all)
 	}
 }
