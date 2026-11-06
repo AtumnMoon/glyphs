@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,6 +52,10 @@ type Deps struct {
 	// The Logs tab: Logs returns up to n entries from the end of the log file,
 	// newest first (LogModTime is polled to notice new ones). Problems are the
 	// config errors and warnings found at startup, listed above the file.
+	// Editor builds the command that edits the file at path. Nil means
+	// $VISUAL, then $EDITOR, then vi.
+	Editor func(path string) (*exec.Cmd, error)
+
 	Logs       func(n int) ([]logx.Entry, error)
 	LogModTime func() time.Time
 	Problems   []logx.Entry
@@ -102,6 +107,7 @@ type model struct {
 	moveOrig    []clipboard.ClipboardEntry
 	moveTargets map[string]bool // move mode: keys of the entries being carried
 	moved       bool            // move mode: the order differs from moveOrig
+	edit        *editSession    // an entry is open in the editor
 	skin        int             // 0 = default, 1..5 = skin tone
 
 	// Terminal capabilities, learned from replies to queries sent at startup.

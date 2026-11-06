@@ -40,6 +40,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmd = tick()
 
+	case editDoneMsg:
+		m.finishEdit(msg.err)
+
 	case copiedMsg:
 		if msg.err != nil {
 			m.setStatus("copy failed: "+msg.err.Error(), true)
@@ -178,6 +181,8 @@ func (m *model) onNormalKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	case key.Matches(msg, k.MoveMode) && m.tab == tabClipboard:
 		m.enterMove()
+	case key.Matches(msg, k.Edit) && m.tab == tabClipboard:
+		return m.startEdit()
 	case key.Matches(msg, k.Quit):
 		if m.query != "" {
 			m.setQuery("")

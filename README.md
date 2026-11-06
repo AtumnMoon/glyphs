@@ -60,6 +60,25 @@ All rebindable (press `?` in the app).
 - `s` / `Shift+↑↓` multi-select
 - `Space` preview.
 - `v` select mode, `m` move mode (below).
+- `e` edit the entry in `$VISUAL` / `$EDITOR` (below).
+
+### Editing an entry
+
+`e` opens the highlighted text entry in `$VISUAL`, then `$EDITOR`, then `vi`. The
+UI is suspended while the editor runs and comes back when it exits. The entry
+keeps its position, pin and time. Details:
+
+- The variable is split on spaces, so `EDITOR="code --wait"` works. Quoting is not
+  supported: point it at a small script for anything fancier.
+- Only the newline your editor adds at the end is dropped. Saving an empty file,
+  or an unchanged one, or quitting the editor with an error, changes nothing.
+- The text goes through a file in a fresh private directory (mode 0700, file 0600),
+  which is deleted afterwards along with any swap or backup files the editor
+  left beside it. Clipboard text is often secret, so nothing is left in `/tmp`.
+- If the new text equals another entry and `allow_duplicates` is off, the other
+  one is removed and the survivor is pinned if either was.
+- One text entry at a time: with several selected, glyphs asks you to clear the
+  selection (`S`). Images can't be edited.
 
 ### Modes (clipboard tab)
 

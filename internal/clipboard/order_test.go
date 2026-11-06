@@ -125,3 +125,78 @@ func TestReorderIgnoresDuplicateKeysInTheRequest(t *testing.T) {
 		t.Errorf("a key listed three times must still move one entry: %v", got)
 	}
 }
+
+// ---- EditText ----------------------------------------------------------------
+
+func TestEditTextKeepsPositionPinAndTime(t *testing.T) {
+	s, k := seeded(t) // d c b a
+	s.Pin(2, true)    // "b"
+	before, _ := s.All()
+	got, err := s.EditText(k["b"], "  bee\x00 ", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Value != "bee" || !got.Pinned || got.Recorded != before[2].Recorded {
+		t.Errorf("returned %+v", got)
+	}
+	if v := vals(t, s); !same(v, []string{"d", "c", "bee", "a"}) {
+		t.Errorf("the entry must stay where it was and be sanitised: %v", v)
+	}
+	if got.Key() == k["b"] {
+		t.Error("the key must change with the text")
+	}
+}
+
+func TestEditTextDedupes(t *testing.T) {
+	s, k := seeded(t) // d c b a
+	s.Pin(0, true)    // "d" is pinned
+	got, err := s.EditText(k["b"], "d", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := vals(t, s); !same(v, []string{"c", "d", "a"}) {
+		t.Errorf("the other entry holding the same text goes: %v", v)
+	}
+	if !got.Pinned {
+		t.Error("the survivor inherits the pin of the entry that was merged into it")
+	}
+}
+
+func TestEditTextWithDuplicatesAllowed(t *testing.T) {
+	s, k := seeded(t)
+	if _, err := s.EditText(k["b"], "d", false); err != nil {
+		t.Fatal(err)
+	}
+	if v := vals(t, s); !same(v, []string{"d", "c", "d", "a"}) {
+		t.Errorf("both copies stay: %v", v)
+	}
+}
+
+func TestEditTextErrors(t *testing.T) {
+	s, k := seeded(t)
+	if _, err := s.EditText(k["a"], " \x00 ", true); err != ErrEmpty {
+		t.Errorf("blank: %v", err)
+	}
+	if _, err := s.EditText("gone", "x", true); err != ErrNoEntry {
+		t.Errorf("vanished: %v", err)
+	}
+	img, _, _ := s.RecordImage([]byte("png"), Policy{})
+	if _, err := s.EditText(img.Key(), "x", true); err != ErrNotText {
+		t.Errorf("image: %v", err)
+	}
+	if v := vals(t, s); len(v) != 5 {
+		t.Errorf("a failed edit must change nothing: %v", v)
+	}
+}
+
+// The listener may prepend between the user opening the editor and saving it.
+func TestEditTextFindsTheEntryAfterNewOnesArrive(t *testing.T) {
+	s, k := seeded(t)
+	s.RecordText("fresh", Policy{AllowDuplicates: true})
+	if _, err := s.EditText(k["c"], "see", true); err != nil {
+		t.Fatal(err)
+	}
+	if v := vals(t, s); !same(v, []string{"fresh", "d", "see", "b", "a"}) {
+		t.Errorf("got %v", v)
+	}
+}

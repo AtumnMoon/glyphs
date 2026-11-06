@@ -128,6 +128,7 @@ func DefaultKeyBindings() map[string][]string {
 		"move_mode":      {"m"},
 		"mode_exit":      {"esc"},
 		"move_confirm":   {"enter"},
+		"edit":           {"e"},
 		"more":           {"?"},
 		"quit":           {"q", "esc"},
 		"force_quit":     {"ctrl+c"},

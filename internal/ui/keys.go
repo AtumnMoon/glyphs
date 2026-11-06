@@ -17,6 +17,7 @@ type keyMap struct {
 	Home, End, Skin, More, Quit, ForceQuit      key.Binding
 	CycleLevel                                  key.Binding
 	SelectMode, MoveMode, ModeExit, MoveConfirm key.Binding
+	Edit                                        key.Binding
 }
 
 // bind builds a binding for the action from config, labelling it in help with
@@ -76,6 +77,7 @@ func newKeyMap(cfg config.Config) keyMap {
 		MoveMode:     bind(cfg, "move_mode", "", "move mode"),
 		ModeExit:     bind(cfg, "mode_exit", "", "leave mode"),
 		MoveConfirm:  bind(cfg, "move_confirm", "", "save order"),
+		Edit:         bind(cfg, "edit", "", "edit"),
 	}
 }
 
@@ -120,7 +122,7 @@ func (t tabKeys) ShortHelp() []key.Binding {
 	}
 	switch t.tab {
 	case tabClipboard:
-		return []key.Binding{nav, k.Choose, k.Filter, k.Preview, k.TogglePin, k.Remove, k.SelectMode, k.MoveMode, k.NextTab, k.More, k.Quit}
+		return []key.Binding{nav, k.Choose, k.Filter, k.Preview, k.TogglePin, k.Remove, k.SelectMode, k.MoveMode, k.Edit, k.NextTab, k.More, k.Quit}
 	case tabEmoji:
 		return []key.Binding{nav, k.Choose, k.Filter, k.Skin, k.NextTab, k.More, k.Quit}
 	case tabLogs:
@@ -143,7 +145,7 @@ func (t tabKeys) FullHelp() [][]key.Binding {
 		cols = append(cols,
 			[]key.Binding{k.Preview, k.TogglePin, k.TogglePinned, k.Remove},
 			[]key.Binding{k.SelectMode, k.SelectSingle, k.SelectUp, k.SelectDown, k.ClearS},
-			[]key.Binding{k.MoveMode})
+			[]key.Binding{k.MoveMode, k.Edit})
 	case tabEmoji:
 		cols = append(cols, []key.Binding{k.Skin})
 	case tabLogs:

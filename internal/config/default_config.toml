@@ -78,6 +78,7 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # move_mode = ["m"]      # clipboard: movement carries the entry; reorders the list
 # mode_exit = ["esc"]    # leave select mode, or cancel move mode
 # move_confirm = ["enter"]  # move mode: save the new order
+# edit = ["e"]           # clipboard: edit the entry in $VISUAL / $EDITOR
 # more = ["?"]
 # quit = ["q", "esc"]
 # force_quit = ["ctrl+c"]
