@@ -74,6 +74,8 @@ type Logger struct {
 	tee  io.Writer
 	max  int64
 	now  func() time.Time
+
+	crash bool // CaptureCrashes is active and holds a duplicate of f's handle
 }
 
 // Open opens (creating) the log at path. tee, if not nil, also receives every
@@ -105,33 +107,66 @@ func (l *Logger) open() error {
 
 // rotate moves the full log aside (keeping one generation) and starts anew.
 // Callers hold l.mu or are still constructing l.
+//
+// On Windows a file cannot be renamed while any handle to it is open (Go does
+// not open files with delete sharing), so the crash-output duplicate is
+// released first and pointed at the new file afterwards. Whatever happens, l.f
+// ends up open: if the rename is refused (another process is reading the log at
+// that moment) the old file is reopened and rotation is retried on a later write.
 func (l *Logger) rotate() error {
+	if l.crash {
+		_ = debug.SetCrashOutput(nil, debug.CrashOptions{})
+	}
 	l.f.Close()
 	_ = os.Remove(l.path + ".1")
-	if err := os.Rename(l.path, l.path+".1"); err != nil {
-		return fmt.Errorf("rotate log: %w", err)
-	}
+	renameErr := os.Rename(l.path, l.path+".1")
+
 	f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
+		// Nothing to write to: keep a closed-but-non-nil file so later writes
+		// fail quietly instead of panicking.
 		return fmt.Errorf("rotate log: %w", err)
 	}
-	l.f, l.size = f, 0
+	l.f = f
+	if l.crash {
+		_ = debug.SetCrashOutput(f, debug.CrashOptions{})
+	}
+	if renameErr != nil {
+		if fi, err := f.Stat(); err == nil {
+			l.size = fi.Size()
+		}
+		return fmt.Errorf("rotate log: %w", renameErr)
+	}
+	l.size = 0
 	return nil
 }
 
-// Close closes the file.
+// Close closes the file, and with it the runtime's duplicate of the handle (see
+// CaptureCrashes). On Windows an open handle stops the file being deleted or
+// replaced, so a leaked duplicate is visible there even though POSIX hides it.
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.crash {
+		_ = debug.SetCrashOutput(nil, debug.CrashOptions{})
+		l.crash = false
+	}
 	return l.f.Close()
 }
 
 // CaptureCrashes also sends a fatal Go runtime error (a panic that kills the
 // process, which bypasses every logging call) to the log file.
+//
+// SetCrashOutput duplicates the file handle and keeps the duplicate until crash
+// output is reset, so closing the file is not enough: Close resets it.
 func (l *Logger) CaptureCrashes() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return debug.SetCrashOutput(l.f, debug.CrashOptions{})
+	if err := debug.SetCrashOutput(l.f, debug.CrashOptions{}); err != nil {
+		return err
+	}
+	l.crash = true
+	return nil
 }
 
 // flatten keeps an entry on one line: its lines are trimmed, blank ones are

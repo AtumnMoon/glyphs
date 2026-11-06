@@ -186,3 +186,97 @@ func TestFlattenDropsBlankLines(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// SetCrashOutput keeps its own duplicate of the file handle. If Close does not
+// release it the log stays open: invisible on Linux and macOS, but on Windows
+// the file can then not be removed (this broke t.TempDir cleanup in CI).
+func TestCloseReleasesTheCrashOutputHandle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "glyphs.log")
+	l, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.CaptureCrashes(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Fails on Windows if a handle is still open.
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("the log file is still open after Close: %v", err)
+	}
+
+	// Where /proc exists (Linux) the leak can be seen directly.
+	path2 := filepath.Join(t.TempDir(), "again.log")
+	l2, _ := Open(path2, nil)
+	l2.CaptureCrashes()
+	l2.Close()
+	fds, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return
+	}
+	for _, fd := range fds {
+		if target, err := os.Readlink(filepath.Join("/proc/self/fd", fd.Name())); err == nil && target == path2 {
+			t.Errorf("fd %s still refers to %s after Close", fd.Name(), path2)
+		}
+	}
+}
+
+func TestCloseWithoutCaptureStillWorks(t *testing.T) {
+	l, _ := Open(filepath.Join(t.TempDir(), "glyphs.log"), nil)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Rotation renames the live file, which Windows refuses while a handle is open.
+// The crash-output duplicate must not be what blocks it, and the crash output
+// must follow the logger to the new file.
+func TestRotationWithCrashCaptureActive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "glyphs.log")
+	l, _ := Open(path, nil)
+	l.max = 300
+	if err := l.CaptureCrashes(); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 20 {
+		l.Infof("entry number %02d with some padding text", i)
+	}
+	if _, err := os.Stat(path + ".1"); err != nil {
+		t.Fatalf("rotation did not happen: %v", err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("a handle is still open after rotation and Close: %v", err)
+	}
+	if err := os.Remove(path + ".1"); err != nil {
+		t.Fatalf("the rotated file is still open: %v", err)
+	}
+}
+
+// If the rename is refused, logging must carry on into the same file.
+func TestFailedRotationKeepsLogging(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "glyphs.log")
+	l, _ := Open(path, nil)
+	l.max = 120
+	// A directory where the rotated file should go makes the rename fail on
+	// every platform.
+	if err := os.MkdirAll(filepath.Join(path+".1", "keep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 10 {
+		l.Infof("entry %02d is written even though rotation fails", i)
+	}
+	l.Close()
+	got, err := Read(path, 100)
+	if err != nil || len(got) != 10 {
+		t.Fatalf("every entry must still be logged, got %d (%v)", len(got), err)
+	}
+	if got[0].Msg != "entry 09 is written even though rotation fails" {
+		t.Errorf("newest = %q", got[0].Msg)
+	}
+}
