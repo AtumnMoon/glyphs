@@ -36,3 +36,7 @@ profile.cov
 # Scripts
 *.*sh
 *.ps
+
+# Internal sources
+internal/data/sources/*
+!internal/data/sources/sources.lock
