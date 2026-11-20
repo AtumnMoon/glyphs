@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"bytes"
@@ -71,7 +71,6 @@ func TestClearFlagsAreExclusive(t *testing.T) {
 	if code, _, _ := run(t, "clear", "--all", "--text"); code != exitUsage {
 		t.Errorf("clear --all --text: code %d, want %d", code, exitUsage)
 	}
-	// (package app prints "removed N entries" straight to os.Stdout)
 	if code, _, se := run(t, "clear", "--images"); code != 0 {
 		t.Errorf("clear --images: code %d, err %q", code, se)
 	}

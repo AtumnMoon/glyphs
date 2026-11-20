@@ -3,6 +3,7 @@ package app
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -88,24 +89,21 @@ func persist(format string, data []byte) error {
 
 // RunHolder is the body of `glyphs hold <text|image>`: read the payload from
 // stdin, take ownership of the clipboard, and stay alive until it is replaced.
-func RunHolder(format string) int {
+func RunHolder(format string) error {
 	f, ok := formatOf(format)
 	if !ok {
-		fmt.Fprintln(os.Stderr, "hold: format must be text or image")
-		return 1
+		return errors.New("hold: format must be text or image")
 	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "hold:", err)
-		return 1
+		return fmt.Errorf("hold: %w", err)
 	}
 	if err := clipboard.Init(); err != nil {
-		fmt.Fprintln(os.Stderr, "clipboard unavailable:", err)
-		return 1
+		return fmt.Errorf("clipboard unavailable: %w", err)
 	}
 	replaced := clipboard.Write(f, data)
 	fmt.Println("ok")
 	os.Stdout.Close() // let the parent's read finish
 	<-replaced        // closed when another program takes the clipboard
-	return 0
+	return nil
 }

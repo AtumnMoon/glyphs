@@ -12,14 +12,6 @@ import (
 	"github.com/AtumnMoon/glyphs/internal/config"
 )
 
-// ExitConfig is the exit status for an invalid configuration (EX_CONFIG).
-const ExitConfig = 78
-
-func fail(err error) int {
-	fmt.Fprintln(os.Stderr, "error:", err)
-	return 1
-}
-
 func inputFrom(args []string) (string, error) {
 	if len(args) > 0 {
 		return strings.Join(args, " "), nil
@@ -31,100 +23,85 @@ func inputFrom(args []string) (string, error) {
 	return "", fmt.Errorf("no input: pass an argument or pipe data on stdin")
 }
 
-// Add records input in the history without touching the system clipboard.
-func Add(cfg config.Config, args []string) int {
+// Add records input in the history without touching the system clipboard. It
+// reports whether anything was recorded (false: empty or excluded).
+func Add(cfg config.Config, args []string) (bool, error) {
 	text, err := inputFrom(args)
 	if err != nil {
-		return fail(err)
+		return false, err
 	}
 	store, err := NewStore(cfg)
 	if err != nil {
-		return fail(err)
+		return false, err
 	}
 	policy, err := Policy(cfg)
 	if err != nil {
-		fail(err)
-		return ExitConfig
+		return false, configErr(err)
 	}
-	if _, ok, err := store.RecordText(text, policy); err != nil {
-		return fail(err)
-	} else if !ok {
-		fmt.Fprintln(os.Stderr, "nothing added (empty or excluded)")
-	}
-	return 0
+	_, ok, err := store.RecordText(text, policy)
+	return ok, err
 }
 
 // Copy puts input on the system clipboard (a running listener records it).
-func Copy(cfg config.Config, args []string) int {
+func Copy(cfg config.Config, args []string) error {
 	text, err := inputFrom(args)
 	if err != nil {
-		return fail(err)
+		return err
 	}
-	if err := PersistText(text); err != nil {
-		return fail(err)
-	}
-	return 0
+	return PersistText(text)
 }
 
-// Paste prints the current clipboard text.
-func Paste(cfg config.Config) int {
+// Paste returns the current clipboard text.
+func Paste(cfg config.Config) (string, error) {
 	if err := initClipboard(); err != nil {
-		return fail(err)
+		return "", err
 	}
-	fmt.Print(string(gclip.Read(gclip.FmtText)))
-	return 0
+	return string(gclip.Read(gclip.FmtText)), nil
 }
 
-// Clear removes history entries by scope.
-func Clear(cfg config.Config, scope clipboard.ClearScope) int {
+// Clear removes history entries by scope and returns how many it removed.
+func Clear(cfg config.Config, scope clipboard.ClearScope) (int, error) {
 	store, err := NewStore(cfg)
 	if err != nil {
-		return fail(err)
+		return 0, err
 	}
-	n, err := store.ClearScoped(scope)
-	if err != nil {
-		return fail(err)
-	}
-	fmt.Printf("removed %d entries\n", n)
-	return 0
+	return store.ClearScoped(scope)
 }
 
-// Clean sanitises text entries and removes orphaned images.
-func Clean(cfg config.Config) int {
+// Clean sanitises text entries and removes orphaned images. It returns the
+// number of entries and of orphaned files removed.
+func Clean(cfg config.Config) (entries, files int, err error) {
 	store, err := NewStore(cfg)
 	if err != nil {
-		return fail(err)
+		return 0, 0, err
 	}
-	e, f, err := store.Clean()
-	if err != nil {
-		return fail(err)
-	}
-	fmt.Printf("removed %d entries, %d orphaned files\n", e, f)
-	return 0
+	return store.Clean()
 }
 
-// OutputAll prints every text entry, newest first. mode "unescaped" prints
-// entries verbatim separated by newlines; anything else ("raw") escapes
-// newlines inside entries so each entry is exactly one line.
-func OutputAll(cfg config.Config, mode string) int {
+// OutputAll writes every text entry to w, newest first. mode "unescaped"
+// writes entries verbatim separated by newlines; anything else ("raw")
+// escapes newlines inside entries so each entry is exactly one line.
+func OutputAll(w io.Writer, cfg config.Config, mode string) error {
 	store, err := NewStore(cfg)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	entries, err := store.All()
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	esc := strings.NewReplacer("\r", "\\r", "\n", "\\n")
 	for _, e := range entries {
 		if e.IsImage() {
 			continue
 		}
-		if mode == "unescaped" {
-			fmt.Println(e.Value)
-		} else {
-			fmt.Println(esc.Replace(e.Value))
+		v := e.Value
+		if mode != "unescaped" {
+			v = esc.Replace(v)
+		}
+		if _, err := fmt.Fprintln(w, v); err != nil {
+			return err
 		}
 	}
-	return 0
+	return nil
 }

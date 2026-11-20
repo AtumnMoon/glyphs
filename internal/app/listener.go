@@ -53,31 +53,26 @@ func Kill(cfg config.Config) (bool, error) {
 // LaunchListener starts the listener as a detached background process,
 // replacing any previous one. The child writes the log file itself (see
 // package logx), so its own stdout and stderr go nowhere.
-func LaunchListener(cfg config.Config) int {
+func LaunchListener(cfg config.Config) error {
 	// Check what the detached child would check, so a mistake is reported
 	// here, on the terminal, rather than into a log nobody is reading.
 	if _, err := Policy(cfg); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		return ExitConfig
+		return configErr(err)
 	}
 	if _, err := Kill(cfg); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		return 1
+		return err
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: locate executable:", err)
-		return 1
+		return fmt.Errorf("locate executable: %w", err)
 	}
 	cmd := exec.Command(exe, "listen", "--foreground")
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, "error: start listener:", err)
-		return 1
+		return fmt.Errorf("start listener: %w", err)
 	}
 	_ = cmd.Process.Release()
-	fmt.Printf("glyphs listener started (log: %s)\n", cfg.LogFilePath)
-	return 0
+	return nil
 }
 
 // LogError appends an error to the log file shown in the TUI's Logs tab. It is
@@ -90,11 +85,10 @@ func LogError(cfg config.Config, format string, a ...any) {
 // clipboard.Watch into the store's own Listen method, dropping data while
 // paused. Everything it reports goes to the log file, and also to stderr, which
 // is where a terminal or the systemd journal shows it.
-func RunListener(cfg config.Config) int {
+func RunListener(cfg config.Config) error {
 	lg, err := logx.Open(cfg.LogFilePath, os.Stderr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		return 1
+		return err
 	}
 	defer lg.Close()
 	_ = lg.CaptureCrashes()
@@ -107,21 +101,21 @@ func RunListener(cfg config.Config) int {
 	policy, err := Policy(cfg)
 	if err != nil {
 		lg.Errorf("listener refused to start: %v", err)
-		return ExitConfig
+		return reported(configErr(err))
 	}
 	store, err := NewStore(cfg)
 	if err != nil {
 		lg.Errorf("listener: %v", err)
-		return 1
+		return reported(err)
 	}
 	if err := initClipboard(); err != nil {
 		lg.Errorf("listener: %v", err)
-		return 1
+		return reported(err)
 	}
 	inst, err := acquire(cfg.ListenerLockFile(), cfg.PIDFile(), "listener", false, 0)
 	if err != nil {
 		lg.Errorf("listener: %v; use `glyphs kill` first", err)
-		return 1
+		return reported(err)
 	}
 	defer inst.release()
 
@@ -131,7 +125,7 @@ func RunListener(cfg config.Config) int {
 	lg.Infof("listener started (pid %d)", os.Getpid())
 	store.ListenWith(gate(gclip.Watch(ctx, gclip.FmtText, gclip.FmtImage), func() bool { return IsPaused(cfg) }), policy, lg.Writer(logx.Error))
 	lg.Infof("listener stopped")
-	return 0
+	return nil
 }
 
 // gate forwards clipboard data except while paused() is true. The output

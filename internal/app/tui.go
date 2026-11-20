@@ -19,31 +19,30 @@ import (
 // LaunchTUI opens the interactive UI. startTab may be "" (use the configured
 // default) or a tab key (clipboard, kaomoji, emoji, logs). cfgErr is the error
 // config.Load returned, if any: the UI runs on the defaults and reports it.
-func LaunchTUI(cfg config.Config, startTab string, cfgErr error) int {
+func LaunchTUI(cfg config.Config, startTab string, cfgErr error) error {
 	if startTab != "" && !slices.Contains(config.TabKeys, strings.ToLower(startTab)) {
-		fmt.Fprintf(os.Stderr, "Unknown tab %q (use %s)\n", startTab, strings.Join(config.TabKeys, ", "))
-		return 1
+		return fmt.Errorf("unknown tab %q (use %s)", startTab, strings.Join(config.TabKeys, ", "))
 	}
 	kao, err := data.NewKaomojiStore("")
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	emo, err := data.NewEmojiStore("")
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	hist, err := NewStore(cfg)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	if _, err := hist.Expire(cfg.DeleteAfter); err != nil {
-		return fail(err)
+		return err
 	}
 
 	// Only one TUI at a time: a new one replaces any that is already open.
 	release, err := claimTUI(cfg)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	defer release()
 
@@ -74,10 +73,9 @@ func LaunchTUI(cfg config.Config, startTab string, cfgErr error) int {
 	}, startTab)
 
 	if _, err := tea.NewProgram(model).Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Could not start program :(\n%v\n", err)
-		return 1
+		return fmt.Errorf("could not start program: %w", err)
 	}
-	return 0
+	return nil
 }
 
 // configProblems turns what config.Load reported into Logs-tab entries: the

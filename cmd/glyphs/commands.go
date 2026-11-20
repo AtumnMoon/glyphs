@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -30,12 +30,16 @@ The listener refuses to start when the config file is invalid: falling back to
 the defaults would drop your excluded_patterns and record what you excluded.
 It then exits with status 78 (EX_CONFIG).`,
 		Args: cobra.NoArgs,
-		RunE: cfgRun(true, func(_ *cobra.Command, cfg config.Config, _ []string) error {
+		RunE: cfgRun(true, func(cmd *cobra.Command, cfg config.Config, _ []string) error {
 			if foreground {
 				_, _ = app.Kill(cfg)
-				return fromCode(app.RunListener(cfg))
+				return fromErr(app.RunListener(cfg))
 			}
-			return fromCode(app.LaunchListener(cfg))
+			if err := app.LaunchListener(cfg); err != nil {
+				return fromErr(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "glyphs listener started (log: %s)\n", cfg.LogFilePath)
+			return nil
 		}),
 	}
 	c.Flags().BoolVarP(&foreground, "foreground", "f", false, "run in the current process instead of detaching")
@@ -70,35 +74,32 @@ func newPauseCmd() *cobra.Command {
 		Long:    "Pause recording for a duration such as 30s, 5m or 1h. \"off\" (or \"resume\") resumes it.",
 		Args:    cobra.ExactArgs(1),
 		RunE: cfgRun(false, func(cmd *cobra.Command, cfg config.Config, args []string) error {
-			return fromCode(handlePause(cmd, cfg, args[0]))
+			return handlePause(cmd, cfg, args[0])
 		}),
 	}
 }
 
-func handlePause(cmd *cobra.Command, cfg config.Config, arg string) int {
+func handlePause(cmd *cobra.Command, cfg config.Config, arg string) error {
 	out, errw := cmd.OutOrStdout(), cmd.ErrOrStderr()
 	if a := strings.ToLower(arg); a == "off" || a == "resume" {
 		if err := app.Resume(cfg); err != nil {
-			fmt.Fprintln(errw, "error:", err)
-			return exitFail
+			return fromErr(err)
 		}
 		fmt.Fprintln(out, "recording resumed")
-		return exitOK
+		return nil
 	}
 	d, err := app.ParseDuration(arg)
 	if err != nil {
-		fmt.Fprintf(errw, "error: invalid duration %q: %v\nExample: glyphs pause 5m   (or \"glyphs pause off\" to resume)\n", arg, err)
-		return exitFail
+		return &exitError{code: exitFail, msg: fmt.Sprintf("invalid duration %q: %v\nExample: glyphs pause 5m   (or \"glyphs pause off\" to resume)", arg, err)}
 	}
 	if !app.IsListenerRunning(cfg) {
 		fmt.Fprintln(errw, "note: no listener is running, so there is nothing to pause yet (start one with: glyphs listen)")
 	}
 	if err := app.Pause(cfg, d); err != nil {
-		fmt.Fprintln(errw, "error:", err)
-		return exitFail
+		return fromErr(err)
 	}
 	fmt.Fprintf(out, "recording paused for %s\n", d)
-	return exitOK
+	return nil
 }
 
 func newAddCmd() *cobra.Command {
@@ -106,8 +107,12 @@ func newAddCmd() *cobra.Command {
 		Use:   "add [text...]",
 		Short: "Add text to the history without copying it",
 		Long:  "Add the arguments (or piped stdin) to the history without touching the system clipboard.\nLike the listener, it refuses to run with an invalid config.",
-		RunE: cfgRun(true, func(_ *cobra.Command, cfg config.Config, args []string) error {
-			return fromCode(app.Add(cfg, args))
+		RunE: cfgRun(true, func(cmd *cobra.Command, cfg config.Config, args []string) error {
+			added, err := app.Add(cfg, args)
+			if err == nil && !added {
+				fmt.Fprintln(cmd.ErrOrStderr(), "nothing added (empty or excluded)")
+			}
+			return fromErr(err)
 		}),
 	}
 }
@@ -118,7 +123,7 @@ func newCopyCmd() *cobra.Command {
 		Short: "Copy text to the system clipboard",
 		Long:  "Copy the arguments (or piped stdin) to the system clipboard. A running listener records it.",
 		RunE: cfgRun(false, func(_ *cobra.Command, cfg config.Config, args []string) error {
-			return fromCode(app.Copy(cfg, args))
+			return fromErr(app.Copy(cfg, args))
 		}),
 	}
 }
@@ -128,8 +133,13 @@ func newPasteCmd() *cobra.Command {
 		Use:   "paste",
 		Short: "Print the current clipboard text",
 		Args:  cobra.NoArgs,
-		RunE: cfgRun(false, func(_ *cobra.Command, cfg config.Config, _ []string) error {
-			return fromCode(app.Paste(cfg))
+		RunE: cfgRun(false, func(cmd *cobra.Command, cfg config.Config, _ []string) error {
+			text, err := app.Paste(cfg)
+			if err != nil {
+				return fromErr(err)
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), text)
+			return fromErr(err)
 		}),
 	}
 }
@@ -141,7 +151,7 @@ func newClearCmd() *cobra.Command {
 		Short: "Remove entries from the history",
 		Long:  "Remove every history entry except the pinned ones. --all, --images and --text widen or narrow that, and include pinned entries.",
 		Args:  cobra.NoArgs,
-		RunE: cfgRun(false, func(_ *cobra.Command, cfg config.Config, _ []string) error {
+		RunE: cfgRun(false, func(cmd *cobra.Command, cfg config.Config, _ []string) error {
 			scope := clipboard.ClearUnpinned
 			switch {
 			case all:
@@ -151,7 +161,12 @@ func newClearCmd() *cobra.Command {
 			case text:
 				scope = clipboard.ClearText
 			}
-			return fromCode(app.Clear(cfg, scope))
+			n, err := app.Clear(cfg, scope)
+			if err != nil {
+				return fromErr(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "removed %d entries\n", n)
+			return nil
 		}),
 	}
 	c.Flags().BoolVar(&all, "all", false, "remove the entire history, pinned entries included")
@@ -166,8 +181,13 @@ func newCleanCmd() *cobra.Command {
 		Use:   "clean",
 		Short: "Sanitise text entries and remove orphaned images",
 		Args:  cobra.NoArgs,
-		RunE: cfgRun(false, func(_ *cobra.Command, cfg config.Config, _ []string) error {
-			return fromCode(app.Clean(cfg))
+		RunE: cfgRun(false, func(cmd *cobra.Command, cfg config.Config, _ []string) error {
+			e, f, err := app.Clean(cfg)
+			if err != nil {
+				return fromErr(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "removed %d entries, %d orphaned files\n", e, f)
+			return nil
 		}),
 	}
 }
@@ -179,12 +199,12 @@ func newOutputCmd() *cobra.Command {
 		Short: "Print every text entry, newest first",
 		Long:  "Print every text entry, newest first, one per line with newlines escaped. --unescaped prints entries verbatim instead.",
 		Args:  cobra.NoArgs,
-		RunE: cfgRun(false, func(_ *cobra.Command, cfg config.Config, _ []string) error {
+		RunE: cfgRun(false, func(cmd *cobra.Command, cfg config.Config, _ []string) error {
 			mode := "raw"
 			if unescaped {
 				mode = "unescaped"
 			}
-			return fromCode(app.OutputAll(cfg, mode))
+			return fromErr(app.OutputAll(cmd.OutOrStdout(), cfg, mode))
 		}),
 	}
 	c.Flags().BoolVar(&unescaped, "unescaped", false, "print entries verbatim instead of one escaped line each")
@@ -200,7 +220,7 @@ func newHoldCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return fromCode(app.RunHolder(args[0]))
+			return fromErr(app.RunHolder(args[0]))
 		},
 	}
 }

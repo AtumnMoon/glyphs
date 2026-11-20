@@ -1,12 +1,11 @@
-// Package cmd is glyphs' command line: a Cobra command tree whose commands
+// Command glyphs is the command line front end: a Cobra command tree whose commands
 // are thin wrappers over package app.
-package cmd
+package main
 
 import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,6 +14,7 @@ import (
 	"github.com/AtumnMoon/glyphs/internal/config"
 )
 
+// version is overridden at release time: -ldflags "-X main.version=vX.Y.Z".
 var version = "v0.1.0"
 
 // Exit codes. 78 is EX_CONFIG from sysexits.h: systemd units can list it in
@@ -23,7 +23,7 @@ const (
 	exitOK     = 0
 	exitFail   = 1
 	exitUsage  = 2
-	exitConfig = app.ExitConfig
+	exitConfig = 78
 )
 
 // exitError carries a process exit code out of a command. The message, when
@@ -35,16 +35,22 @@ type exitError struct {
 
 func (e *exitError) Error() string { return e.msg }
 
-// fromCode adapts package app's int results (which print their own errors).
-func fromCode(code int) error {
-	if code == 0 {
+// fromErr maps an error from package app to an exit code: invalid config is
+// exitConfig, anything else exitFail. An error app already reported (to the log
+// and stderr) carries no message, so Execute does not print it twice.
+func fromErr(err error) error {
+	if err == nil {
 		return nil
 	}
-	return &exitError{code: code}
+	ee := &exitError{code: exitFail}
+	if errors.Is(err, app.ErrConfig) {
+		ee.code = exitConfig
+	}
+	if !app.IsReported(err) {
+		ee.msg = err.Error()
+	}
+	return ee
 }
-
-// Main runs the CLI against the real process arguments and returns the exit code.
-func Main() int { return Execute(os.Args[1:], os.Stdout, os.Stderr) }
 
 // Execute runs the CLI with explicit arguments and streams (used by tests).
 func Execute(args []string, stdout, stderr io.Writer) int {
@@ -99,7 +105,7 @@ as systemd, see contrib/glyphs-listener.service).`,
 			if keep {
 				cfg.QuitAfterCopy = false
 			}
-			return fromCode(app.LaunchTUI(cfg, tab, cfgErr))
+			return fromErr(app.LaunchTUI(cfg, tab, cfgErr))
 		},
 	}
 	root.SetVersionTemplate("{{.Name}} {{.Version}}\n")
