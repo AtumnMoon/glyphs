@@ -94,8 +94,6 @@ func parseHex(s string) (rune, error) {
 	return rune(v), nil
 }
 
-// ---- Blocks.txt: "0000..007F; Basic Latin" ----
-
 var blocksVersion = regexp.MustCompile(`Blocks-(\d+\.\d+\.\d+)\.txt`)
 
 func parseBlocks(r io.Reader) (version string, bs []block, err error) {
@@ -133,10 +131,6 @@ func parseBlocks(r io.Reader) (version string, bs []block, err error) {
 	return version, bs, sc.Err()
 }
 
-// ---- UnicodeData.txt ----
-// code;name;category;...;field 10 = Unicode 1.0 name (the only name controls have).
-// Large ranges appear as "<X, First>" / "<X, Last>" line pairs.
-
 func rangeName(name, suffix string) string {
 	return strings.ToUpper(strings.TrimSuffix(strings.TrimPrefix(name, "<"), suffix))
 }
@@ -145,7 +139,7 @@ func parseUnicodeData(r io.Reader) ([]entry, error) {
 	var out []entry
 	var first *entry
 	add := func(e entry) {
-		if e.cat != "Cs" && e.cat != "Co" { // surrogates and private use are not Unicode-tab content
+		if e.cat != "Cs" && e.cat != "Co" {
 			out = append(out, e)
 		}
 	}
@@ -191,10 +185,6 @@ func parseUnicodeData(r io.Reader) ([]entry, error) {
 	return out, sc.Err()
 }
 
-// expand turns a First/Last range into the entries to store. Hangul syllables
-// are expanded one per line, because their names are composed from jamo and
-// the runtime should not need that algorithm. CJK and Tangut ranges are
-// renamed to their real algorithmic base names.
 func expand(e entry) []entry {
 	switch {
 	case e.name == "HANGUL SYLLABLE":
@@ -211,8 +201,6 @@ func expand(e entry) []entry {
 	return []entry{e}
 }
 
-// The empty entries (double space in jamoL, leading space in jamoT) are the
-// intentional "no consonant" and "no final" jamo: lengths 19, 21, 28.
 var (
 	jamoL = strings.Split("G GG N D DD R M B BB S SS  J JJ C K T P H", " ")
 	jamoV = strings.Split("A AE YA YAE EO E YEO YE O WA WAE OE YO U WEO WE WI YU EU YI I", " ")
@@ -223,15 +211,6 @@ func hangulName(cp rune) string {
 	s := cp - 0xAC00
 	return "HANGUL SYLLABLE " + jamoL[s/588] + jamoV[s%588/28] + jamoT[s%28]
 }
-
-// ---- output: unicode.txt ----
-//
-//	# unicode 18.0.0
-//	B <start> <end> <block name>          (tab-separated; hex without 0x)
-//	C <cp> <cat> <name>                   single code point, belongs to the last B
-//	R <start> <end> <cat> <base name>     range; runtime name = base + "-" + hex
-//
-// Blocks with no assigned code points are dropped.
 
 func writeUnicode(w io.Writer, version string, blocks []block, entries []entry) error {
 	bw := bufio.NewWriter(w)
@@ -267,9 +246,6 @@ func writeUnicode(w io.Writer, version string, blocks []block, entries []entry) 
 	return bw.Flush()
 }
 
-// ---- glyphnames.json ----
-// {"METADATA": {"version": "3.x", ...}, "fa-glass": {"char": "...", "code": "f000"}, ...}
-
 func parseGlyphnames(r io.Reader) (version string, gs []glyph, err error) {
 	var raw map[string]json.RawMessage
 	if err := json.NewDecoder(r).Decode(&raw); err != nil {
@@ -299,7 +275,7 @@ func parseGlyphnames(r io.Reader) (version string, gs []glyph, err error) {
 	if version == "" {
 		version = "unknown"
 	}
-	sort.Slice(gs, func(i, j int) bool { // by set prefix, then name: the UI's grouping order
+	sort.Slice(gs, func(i, j int) bool {
 		si, sj := setOf(gs[i].name), setOf(gs[j].name)
 		if si != sj {
 			return si < sj
@@ -314,9 +290,6 @@ func setOf(name string) string {
 	return set
 }
 
-// collapse merges names that share a code within one set; the alphabetically
-// first name stays primary and the rest become search aliases. The same code
-// in different sets is kept, since each set is its own group in the UI.
 func collapse(gs []glyph) []glyph {
 	type key struct {
 		set  string
@@ -336,10 +309,6 @@ func collapse(gs []glyph) []glyph {
 	return out
 }
 
-// nerd.txt:
-//
-//	# nerd <version>
-//	G <hex code> <name> [alias...]        (tab-separated; set = name prefix before '-')
 func writeNerd(w io.Writer, version string, gs []glyph) error {
 	bw := bufio.NewWriter(w)
 	fmt.Fprintf(bw, "# nerd %s\n", version)
@@ -362,5 +331,5 @@ func writeGz(path string, fill func(io.Writer) error) error {
 	if err := zw.Close(); err != nil {
 		return err
 	}
-	return os.WriteFile(path, buf.Bytes(), 0o644) // zero gzip mtime: output is deterministic
+	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
