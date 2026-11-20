@@ -20,6 +20,18 @@ glyphs listen               # record clipboard changes in the background
 | **Emoji** | Group list + grid, `t` cycles skin tone. Search box is focused when the tab opens. |
 | **Logs** | What the listener has been doing, and what is wrong with your config. Filter by level (`L`) or by words (`/`). |
 
+Clipboard Tab
+![Clipboard Tab](./misc/clipboard_tab.png)
+
+Kaomoji Tab
+![Clipboard Tab](./misc/kaomoji_tab.png)
+
+Emoji Tab
+![Clipboard Tab](./misc/emoji_tab.png)
+
+Logs Tab
+![Clipboard Tab](./misc/logs_tab.png)
+
 ### Logs
 
 The listener writes its own log file (`log_file`, default `glyphs.log` in the
