@@ -7,12 +7,12 @@ import _ "embed"
 // LoadEmoji/LoadKaomoji (and the New* constructors) whenever no external
 // path is supplied.
 
-// The other one is run at compilation to fetch fresh sources
-
 //go:embed emoji.json
 var embeddedEmojiJSON []byte
 
 //go:embed kaomoji.json
 var embeddedKaomojiJSON []byte
 
+// Run to fetch fresh sources and parse it as tab separated txt file
 //go:generate go run ../../tools/fetchdata -out sources
+//go:generate go run ../../tools/gensymbols -src sources -out .
