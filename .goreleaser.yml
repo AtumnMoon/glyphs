@@ -5,25 +5,28 @@ before:
     - go mod tidy
     # man pages and shell completions are generated from the command tree
     - sh -c 'rm -rf manpages completions && mkdir -p manpages completions'
-    - go run . man manpages
-    - sh -c 'go run . completion bash > completions/glyphs.bash'
-    - sh -c 'go run . completion zsh > completions/_glyphs'
-    - sh -c 'go run . completion fish > completions/glyphs.fish'
+    - go run ./cmd/glyphs man manpages
+    - sh -c 'go run ./cmd/glyphs completion bash > completions/glyphs.bash'
+    - sh -c 'go run ./cmd/glyphs completion zsh > completions/_glyphs'
+    - sh -c 'go run ./cmd/glyphs completion fish > completions/glyphs.fish'
 
 builds:
   - id: glyphs-build
+    main: ./cmd/glyphs
+    binary: glyphs
     env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
       - windows
+      - freebsd
     goarch:
       - amd64
       - arm64
     
     ldflags:
-      - -s -w
+      - -s -w -X main.version={{ .Tag }}
     flags:
       - -trimpath
 

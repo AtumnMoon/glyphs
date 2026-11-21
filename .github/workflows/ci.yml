@@ -28,6 +28,12 @@ jobs:
       - run: go build -v ./...
       - run: go test -v ./...
 
+      - name: Cross-compile check (FreeBSD)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          GOOS=freebsd GOARCH=amd64 go build -o /dev/null ./cmd/glyphs
+          GOOS=freebsd GOARCH=arm64 go build -o /dev/null ./cmd/glyphs
+
   race:
     # The race detector is the only thing here that needs cgo.
     name: Race detector
@@ -54,3 +60,21 @@ jobs:
           out="$(gofmt -l .)"
           if [ -n "$out" ]; then echo "Unformatted files:"; echo "$out"; exit 1; fi
       - run: go vet ./...
+
+  goreleaser-check:
+    # Catches broken paths/config in .goreleaser.yml before tagging a release.
+    name: GoReleaser snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --snapshot --clean --skip=publish
