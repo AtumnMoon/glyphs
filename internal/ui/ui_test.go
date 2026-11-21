@@ -396,8 +396,16 @@ func TestTabSwitching(t *testing.T) {
 		t.Fatalf("emoji should open with the search focused: tab=%d typing=%v", h.model().tab, h.model().typing)
 	}
 	h.press("tab")
+	if h.model().tab != tabUnicode {
+		t.Fatalf("the Unicode tab comes after Emoji, got %d", h.model().tab)
+	}
+	h.press("tab")
+	if h.model().tab != tabNerd {
+		t.Fatalf("the Nerd tab comes after Unicode, got %d", h.model().tab)
+	}
+	h.press("tab")
 	if h.model().tab != tabLogs {
-		t.Fatalf("the Logs tab comes after Emoji, got %d", h.model().tab)
+		t.Fatalf("the Logs tab comes last, got %d", h.model().tab)
 	}
 	h.press("tab")
 	if h.model().tab != tabClipboard {

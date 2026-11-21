@@ -17,7 +17,7 @@ import (
 )
 
 // LaunchTUI opens the interactive UI. startTab may be "" (use the configured
-// default) or a tab key (clipboard, kaomoji, emoji, logs). cfgErr is the error
+// default) or a tab key (clipboard, kaomoji, emoji, unicode, nerd, logs). cfgErr is the error
 // config.Load returned, if any: the UI runs on the defaults and reports it.
 func LaunchTUI(cfg config.Config, startTab string, cfgErr error) error {
 	if startTab != "" && !slices.Contains(config.TabKeys, strings.ToLower(startTab)) {
@@ -51,6 +51,8 @@ func LaunchTUI(cfg config.Config, startTab string, cfgErr error) error {
 		Config:     cfg,
 		Kaomoji:    kao,
 		Emoji:      emo,
+		Symbols:    data.NewSymbolStore,
+		Nerd:       data.NewNerdStore,
 		History:    hist,
 		WriteText:  PersistText,
 		WriteImage: PersistImage,

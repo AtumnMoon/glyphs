@@ -25,10 +25,12 @@ const (
 	tabClipboard tabID = iota
 	tabKaomoji
 	tabEmoji
+	tabUnicode
+	tabNerd
 	tabLogs
 )
 
-var tabNames = []string{"Clipboard", "Kaomoji", "Emoji", "Logs"}
+var tabNames = []string{"Clipboard", "Kaomoji", "Emoji", "Unicode", "Nerd", "Logs"}
 
 func (t tabID) key() string { return strings.ToLower(tabNames[t]) }
 
@@ -38,6 +40,12 @@ type Deps struct {
 	Kaomoji *data.KaomojiStore
 	Emoji   *data.EmojiStore
 	History *clipboard.HistoryStore
+
+	// Symbols and Nerd load the Unicode and Nerd tabs' data. They are called
+	// once, the first time the tab opens, so startup stays fast. Nil leaves
+	// the tab empty.
+	Symbols func() (*data.SymbolStore, error)
+	Nerd    func() (*data.NerdStore, error)
 
 	// Clipboard access, backed by golang.design/x/clipboard in the app and by
 	// fakes in tests.
@@ -97,6 +105,8 @@ type model struct {
 	preview bool // clipboard: full-pane preview is open
 
 	kao, emo *browser
+	uni      *browser // built on first use (see browser())
+	nerd     *browser // built on first use (see browser())
 	clip     *clipState
 	logs     *logState
 
@@ -122,8 +132,8 @@ type model struct {
 	quitting  bool
 }
 
-// New creates the root model. startTab may be "", "kaomoji", "emoji" or
-// "clipboard"; empty falls back to the configured default tab.
+// New creates the root model. startTab may be "", "clipboard", "kaomoji",
+// "emoji", "unicode", "nerd" or "logs"; empty falls back to the configured default tab.
 func New(d Deps, startTab string) tea.Model {
 	cfg := d.Config
 	if startTab == "" {
@@ -146,6 +156,10 @@ func New(d Deps, startTab string) tea.Model {
 	switch strings.ToLower(startTab) {
 	case "emoji":
 		m.tab = tabEmoji
+	case "unicode":
+		m.tab = tabUnicode
+	case "nerd":
+		m.tab = tabNerd
 	case "kaomoji":
 		m.tab = tabKaomoji
 	case "logs":
@@ -203,8 +217,31 @@ func (m *model) browser() *browser {
 		return m.kao
 	case tabEmoji:
 		return m.emo
+	case tabUnicode:
+		if m.uni == nil {
+			m.uni = m.build("unicode", buildUnicode, m.deps.Symbols != nil)
+		}
+		return m.uni
+	case tabNerd:
+		if m.nerd == nil {
+			m.nerd = m.build("nerd", buildNerd, m.deps.Nerd != nil)
+		}
+		return m.nerd
 	}
 	return nil
+}
+
+// build runs a lazy tab's loader. Any failure leaves an empty picker and a
+// status line, so the rest of the UI keeps working.
+func (m *model) build(what string, f func(*model) (*browser, error), available bool) *browser {
+	if available {
+		b, err := f(m)
+		if err == nil {
+			return b
+		}
+		m.setStatus(what+": "+err.Error(), true)
+	}
+	return newBrowser([]string{"All"}, [][]item{nil})
 }
 
 func (m *model) setStatus(s string, isErr bool) { m.status, m.statusErr = s, isErr }
@@ -258,6 +295,13 @@ func (m *model) switchTab(t tabID) {
 	m.confirm = nil
 	m.kao.refresh("")
 	m.emo.refresh("")
+	if m.uni != nil {
+		m.uni.refresh("")
+	}
+	if m.nerd != nil {
+		m.nerd.refresh("")
+	}
+	m.browser() // build the Unicode/Nerd picker now, not in the middle of a redraw
 	if t == tabClipboard {
 		m.reloadClip(true)
 	}

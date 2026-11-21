@@ -17,6 +17,8 @@ type item struct {
 	detail string      // extra info (tags / category)
 	hay    string      // lowercase search haystack
 	emoji  *data.Emoji // set for emoji, used for skin tones
+	show   string      // drawn instead of text when set (invisible code points)
+	cat    string      // Unicode general category (Unicode tab)
 }
 
 // browser is the two-pane "groups | grid" view shared by both picker tabs.
@@ -43,6 +45,15 @@ type browser struct {
 	cols       int // grid columns (set by layout)
 	gridRows   int // visible grid rows (set by layout)
 	groupRows  int // visible group rows (set by layout)
+
+	// Lazy mode (Unicode tab, ~150k items): groups hold no items. load builds
+	// group gi on demand, search returns every group's matches for a query,
+	// and counts are the unfiltered group sizes. Group 0 only exists while a
+	// query is active: it is the combined results.
+	load   func(gi int) []item
+	search func(query string) [][]item
+	counts []int
+	active bool // lazy mode: a query is applied
 }
 
 func newBrowser(names []string, groups [][]item) *browser {
@@ -53,6 +64,23 @@ func newBrowser(names []string, groups [][]item) *browser {
 	b.cellW = b.maxW + 2
 	b.refresh("")
 	return b
+}
+
+// newLazyBrowser builds a picker whose groups are produced on demand.
+// names[0] labels the combined search results; counts is parallel to names.
+func newLazyBrowser(names []string, counts []int, load func(int) []item, search func(string) [][]item) *browser {
+	b := &browser{names: names, groups: make([][]item, len(names)), counts: counts, load: load, search: search}
+	b.cellW = 4 // up to two cells of glyph plus padding, like emoji
+	b.refresh("")
+	return b
+}
+
+// count is the number of items group gi shows right now.
+func (b *browser) count(gi int) int {
+	if b.load != nil && !b.active {
+		return b.counts[gi]
+	}
+	return len(b.filtered[gi])
 }
 
 func matches(it item, terms []string) bool {
@@ -78,20 +106,33 @@ func (b *browser) currentGroup() int {
 func (b *browser) refresh(query string) {
 	prev := b.currentGroup()
 	terms := strings.Fields(strings.ToLower(query))
+	lazy := b.load != nil
+	b.active = lazy && len(terms) > 0
 
-	b.filtered = make([][]item, len(b.groups))
-	b.vis = b.vis[:0]
-	for gi, g := range b.groups {
-		if len(terms) == 0 {
-			b.filtered[gi] = g
-		} else {
+	switch {
+	case b.active:
+		b.filtered = b.search(query)
+	case lazy:
+		b.filtered = make([][]item, len(b.groups))
+	default:
+		b.filtered = make([][]item, len(b.groups))
+		for gi, g := range b.groups {
+			if len(terms) == 0 {
+				b.filtered[gi] = g
+				continue
+			}
 			for _, it := range g {
 				if matches(it, terms) {
 					b.filtered[gi] = append(b.filtered[gi], it)
 				}
 			}
 		}
-		if gi == 0 || len(b.filtered[gi]) > 0 {
+	}
+	b.vis = b.vis[:0]
+	for gi := range b.groups {
+		switch {
+		case lazy && !b.active && gi == 0: // no combined results without a query
+		case gi == 0 || b.count(gi) > 0:
 			b.vis = append(b.vis, gi)
 		}
 	}
@@ -111,7 +152,15 @@ func (b *browser) refresh(query string) {
 
 // selectGroup recomputes shown for the selected group and resets the item cursor.
 func (b *browser) selectGroup() {
-	b.shown = b.filtered[b.currentGroup()]
+	g := b.currentGroup()
+	if b.load != nil && !b.active {
+		b.shown = nil
+		if g > 0 {
+			b.shown = b.load(g)
+		}
+	} else {
+		b.shown = b.filtered[g]
+	}
 	b.icur = cursor{}
 }
 

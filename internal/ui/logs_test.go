@@ -59,7 +59,7 @@ func shown(h *harness) []string {
 func TestLogsTabListsNewestFirstWithLevels(t *testing.T) {
 	h := logHarness(t, sampleLogs())
 	v := h.view()
-	for _, want := range []string{"4 Logs", "Logs — 5", "ERROR", "INFO", "WARN", "record: disk full", "2026-11-05"} {
+	for _, want := range []string{"6 Logs", "Logs — 5", "ERROR", "INFO", "WARN", "record: disk full", "2026-11-05"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("view is missing %q:\n%s", want, v)
 		}
@@ -269,7 +269,7 @@ func TestLogsTabCanBeRenamedAndOpenedByDefault(t *testing.T) {
 	if h.model().tab != tabLogs {
 		t.Fatalf("default_tab = logs should open the Logs tab, got %d", h.model().tab)
 	}
-	if v := h.view(); !strings.Contains(v, "4 Journal") || !strings.Contains(v, "Events — 0") {
+	if v := h.view(); !strings.Contains(v, "6 Journal") || !strings.Contains(v, "Events — 0") {
 		t.Errorf("custom names missing:\n%s", v)
 	}
 }

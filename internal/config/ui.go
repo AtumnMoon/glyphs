@@ -30,13 +30,15 @@ type UI struct {
 	SearchIdle        string `toml:"search_idle"`        // not focused, no query
 	SearchClearHint   string `toml:"search_clear_hint"`  // after a kept query
 
-	// Tab bar. tab_names is keyed by clipboard | kaomoji | emoji | logs.
+	// Tab bar. tab_names is keyed by clipboard | kaomoji | emoji | unicode | nerd | logs.
 	TabNames  map[string]string `toml:"tab_names"`
 	TabFormat string            `toml:"tab_format"`
 
 	// Pane headings and the divider between panes.
 	KaomojiHeading string `toml:"kaomoji_heading"`
 	EmojiHeading   string `toml:"emoji_heading"`
+	UnicodeHeading string `toml:"unicode_heading"`
+	NerdHeading    string `toml:"nerd_heading"`
 	HistoryTitle   string `toml:"history_title"`
 	PinnedOnly     string `toml:"pinned_only"`    // appended to the title in pinned-only mode
 	ModeSelect     string `toml:"mode_select"`    // appended to the history title in select mode
@@ -67,7 +69,7 @@ type UI struct {
 }
 
 // TabKeys are the stable names of the tabs, in display order.
-var TabKeys = []string{"clipboard", "kaomoji", "emoji", "logs"}
+var TabKeys = []string{"clipboard", "kaomoji", "emoji", "unicode", "nerd", "logs"}
 
 // DefaultUI returns the built-in strings and markers.
 func DefaultUI() UI {
@@ -84,11 +86,15 @@ func DefaultUI() UI {
 			"clipboard": "Clipboard",
 			"kaomoji":   "Kaomoji",
 			"emoji":     "Emoji",
+			"unicode":   "Unicode",
+			"nerd":      "Nerd",
 			"logs":      "Logs",
 		},
 		TabFormat:      "{n} {name}",
 		KaomojiHeading: "Categories",
 		EmojiHeading:   "Groups",
+		UnicodeHeading: "Blocks",
+		NerdHeading:    "Sets",
 		HistoryTitle:   "History",
 		PinnedOnly:     " · pinned only",
 		ModeSelect:     " · SELECT",
@@ -123,7 +129,7 @@ func (u UI) resolve() UI {
 	for _, p := range []*string{
 		&u.WindowTitle, &u.PinMarker, &u.SelectMarker, &u.SearchPrompt, &u.SearchCursor,
 		&u.SearchPlaceholder, &u.SearchIdle, &u.SearchClearHint, &u.TabFormat,
-		&u.KaomojiHeading, &u.EmojiHeading, &u.HistoryTitle, &u.PinnedOnly,
+		&u.KaomojiHeading, &u.EmojiHeading, &u.UnicodeHeading, &u.NerdHeading, &u.HistoryTitle, &u.PinnedOnly,
 		&u.SelectedLabel, &u.PreviewTitle, &u.Divider, &u.BadgeListening,
 		&u.BadgePaused, &u.BadgeOff, &u.BadgeConfig, &u.LogsTitle, &u.LogsLevel, &u.EmptyLogs, &u.EmptyHistory, &u.EmptyPinned, &u.NoMatches,
 	} {

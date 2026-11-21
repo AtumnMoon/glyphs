@@ -36,7 +36,7 @@ enable_mouse = true        # wheel scrolling, clicking the tabs
 enable_description = true  # second line (time, size) under every entry
 quit_after_copy = true     # exit after picking an item
 
-# Tab opened by default: "clipboard", "kaomoji", "emoji" or "logs".
+# Tab opened by default: "clipboard", "kaomoji", "emoji", "unicode", "nerd" or "logs".
 default_tab = "clipboard"
 
 # Tabs whose search box starts focused.
@@ -143,6 +143,8 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # tab_format = "{n} {name}"
 # kaomoji_heading = "Categories"
 # emoji_heading = "Groups"
+# unicode_heading = "Blocks"
+# nerd_heading = "Sets"
 # history_title = "History"
 # pinned_only = " · pinned only"
 # mode_select = " · SELECT"
@@ -167,4 +169,6 @@ emoji_rows = 16       # emoji grid rows; 0 = fill the window
 # clipboard = "Clipboard"
 # kaomoji = "Kaomoji"
 # emoji = "Emoji"
+# unicode = "Unicode"
+# nerd = "Nerd"
 # logs = "Logs"

@@ -64,7 +64,7 @@ type Config struct {
 	EnableMouse       bool                `toml:"enable_mouse"`
 	EnableDescription bool                `toml:"enable_description"`
 	QuitAfterCopy     bool                `toml:"quit_after_copy"`
-	DefaultTab        string              `toml:"default_tab"`    // clipboard | kaomoji | emoji
+	DefaultTab        string              `toml:"default_tab"`    // clipboard | kaomoji | emoji | unicode | nerd | logs
 	SearchOnOpen      []string            `toml:"search_on_open"` // tabs whose search box starts focused
 	ImagePreview      string              `toml:"image_preview"`  // auto | sixel | basic | off
 	SimpleEmoji       bool                `toml:"simple_emoji"`   // hide joined (ZWJ) emoji sequences

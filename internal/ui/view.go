@@ -49,7 +49,7 @@ func (m *model) layout() {
 
 	w := m.width
 	switch m.tab {
-	case tabKaomoji, tabEmoji:
+	case tabKaomoji, tabEmoji, tabUnicode, tabNerd:
 		g.leftW = clamp(w*22/100, 14, 26)
 		g.rightW = max(w-g.leftW-m.divW, 4)
 		b := m.browser()
@@ -222,14 +222,19 @@ func (m *model) viewBrowser(b *browser) []string {
 		titleStyle = m.st.paneTitleDim
 	}
 	heading := m.cfg.UI.KaomojiHeading
-	if m.tab == tabEmoji {
+	switch m.tab {
+	case tabEmoji:
 		heading = m.cfg.UI.EmojiHeading
+	case tabUnicode:
+		heading = m.cfg.UI.UnicodeHeading
+	case tabNerd:
+		heading = m.cfg.UI.NerdHeading
 	}
 	left = append(left, titleStyle.Render(fit(heading, g.leftW)))
 	for vi := b.gcur.off; vi < len(b.vis) && len(left) < g.bodyH; vi++ {
 		gi := b.vis[vi]
 		label := " " + b.names[gi]
-		count := fmt.Sprintf("%d ", len(b.filtered[gi]))
+		count := fmt.Sprintf("%d ", b.count(gi))
 		w := g.leftW - ansi.StringWidth(count)
 		line := fit(label, w) + count
 		switch {
@@ -279,6 +284,9 @@ func (m *model) gridRow(b *browser, row, cols, cell, rightW int, groupFocus bool
 		}
 		it := b.shown[idx]
 		text := it.text
+		if it.show != "" {
+			text = it.show
+		}
 		if m.tab == tabEmoji {
 			text = it.glyph(m.skin)
 		}
@@ -507,12 +515,15 @@ func (m *model) viewDetail() string {
 			return ""
 		}
 		var s string
-		if m.tab == tabEmoji {
+		switch {
+		case m.tab == tabUnicode || m.tab == tabNerd:
+			s = symbolDetail(m.tab, it)
+		case m.tab == tabEmoji:
 			s = fmt.Sprintf("%s  %s", it.label, it.detail)
 			if it.emoji != nil {
 				s = fmt.Sprintf("%s  ·  U+%s  ·  %s", it.label, strings.ReplaceAll(it.emoji.Hexcode, "-", " U+"), it.detail)
 			}
-		} else {
+		default:
 			s = fmt.Sprintf("%s  ·  %d chars", it.label, len([]rune(it.text)))
 		}
 		return m.st.detail.Render(fit(s, m.width))
