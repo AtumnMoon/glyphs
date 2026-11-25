@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,8 +15,19 @@ import (
 	"github.com/AtumnMoon/glyphs/internal/config"
 )
 
-// version is overridden at release time: -ldflags "-X main.version=vX.Y.Z".
-var version = "v0.1.0"
+// version is "dev" for a plain `go build`. Release builds and packages set it
+// with -ldflags "-X main.version=vX.Y.Z"; `go install ...@vX.Y.Z` has no such
+// flag, so init falls back to the module version Go embeds in the binary.
+var version = "dev"
+
+func init() {
+	if version != "dev" {
+		return // stamped at build time
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = bi.Main.Version
+	}
+}
 
 // Exit codes. 78 is EX_CONFIG from sysexits.h: systemd units can list it in
 // RestartPreventExitStatus= so a broken config does not cause a restart loop.
