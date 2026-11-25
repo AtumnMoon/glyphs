@@ -1,6 +1,6 @@
 # glyphs
 
-[![Build](https://img.shields.io/github/actions/workflow/status/AtumnMoon/glyphs/ci.yml)](https://github.com/AtumnMoon/glyphs/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/AtumnMoon/glyphs/build.yml)](https://github.com/AtumnMoon/glyphs/actions)
 [![Last Commit](https://img.shields.io/github/last-commit/AtumnMoon/glyphs)](https://github.com/AtumnMoon/glyphs)
 [![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/AtumnMoon/glyphs.svg?color=green)](https://github.com/AtumnMoon/glyphs/issues)
 
