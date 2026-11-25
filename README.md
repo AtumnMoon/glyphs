@@ -1,120 +1,29 @@
 # glyphs
 
+[![Build](https://img.shields.io/github/actions/workflow/status/AtumnMoon/glyphs/ci.yml)](https://github.com/AtumnMoon/glyphs/actions)
+[![Last Commit](https://img.shields.io/github/last-commit/AtumnMoon/glyphs)](https://github.com/AtumnMoon/glyphs)
+[![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/AtumnMoon/glyphs.svg?color=green)](https://github.com/AtumnMoon/glyphs/issues)
+
 Kaomoji picker, emoji picker and clipboard-history manager in one terminal UI.
 The clipboard side is inspired by [clipse](https://github.com/savedra1/clipse).
 
-This is an extemely customized one for me but if you wanna use, feel free.
+It works in Windows, MacOS, and Unix-systems such as Linux and BSD.
 
-```
-glyphs                      # open the TUI
-glyphs --tab emoji          # open on a given tab (clipboard | kaomoji | emoji | logs)
-glyphs listen               # record clipboard changes in the background
-```
+Note: This is extremely customized based on what I want, but if you wanna use it, feel free.
 
-## Tabs
+### Table of Contents
 
-| Tab | What it does |
-| --- | --- |
-| **Clipboard** | History list (opens first). Pin, multi-select, delete, fuzzy search, live updates. `Space` opens a full-pane preview. |
-| **Kaomoji** | Category list + grid. |
-| **Emoji** | Group list + grid, `t` cycles skin tone. Search box is focused when the tab opens. |
-| **Logs** | What the listener has been doing, and what is wrong with your config. Filter by level (`L`) or by words (`/`). |
+- [Configuration](#Configuration)
+- [CLI](#CLI)
+- [Tabs](#Tabs)
+- [Clipboard](#Clipboard)
+- [Symbols](#Symbols)
+- [Logs](#Logs)
 
-Clipboard Tab
-![Clipboard Tab](./misc/clipboard_tab.png)
+## Configuration
 
-Kaomoji Tab
-![Clipboard Tab](./misc/kaomoji_tab.png)
-
-Emoji Tab
-![Clipboard Tab](./misc/emoji_tab.png)
-
-Logs Tab
-![Clipboard Tab](./misc/logs_tab.png)
-
-### Logs
-
-The listener writes its own log file (`log_file`, default `glyphs.log` in the
-config dir; it rotates at 1 MiB), whether you started it with `glyphs listen`
-or under systemd, so this tab works either way. Newest entries are on top and
-the tab updates live. A cursor on the first row follows new entries, like
-`tail -f`.
-
-- `L` cycles the level: all → error → warn → info. Only that level is listed.
-- `/` filters by words: every word must appear (case-insensitive) in the message
-  or the level, so `refused config` finds the line explaining why the listener did
-  not start, and `error` finds every error.
-- `Space` opens the whole message, wrapped; `Enter` copies it.
-- Problems with your `config.toml` (the error, or warnings such as an unknown
-  option) are listed first, and a `⚠ config` badge appears in the clipboard
-  header while there are any. Open this tab to read them.
-- If the listener refuses to start because of the config, it logs why here too.
-
-### Clipboard preview
-Closed by default. `Space` opens it over the whole pane, like clipse: `↑↓`
-scroll a line, `←→` a page (with a scroll percentage), `Enter` copies, `Space`
-or `Esc` closes. Images are drawn as a real bitmap in terminals that support
-sixel (foot, WezTerm, mlterm, ...). glyphs asks the terminal at startup, so no
-setup is needed. Elsewhere it falls back to a half-block approximation.
-
-Set `image_preview` to `sixel`, `basic` or `off` to force a mode. Default is `auto`.
-
-### Keys
-All rebindable (press `?` in the app).
-
-- Arrows or `hjkl` for movement
-- `Enter` copies,
-- `/` searches,
-- `Tab` / `Shift+Tab` switch tab.
-- Clipboard: `p` pin
-- `Ctrl+P` pinned-only,
-- `x` / `Backspace` delete (asks first for pinned)
-- `s` / `Shift+↑↓` multi-select
-- `Space` preview.
-- `v` select mode, `m` move mode (below).
-- `e` edit the entry in `$VISUAL` / `$EDITOR` (below).
-
-### Editing an entry
-
-`e` opens the highlighted text entry in `$VISUAL`, then `$EDITOR`, then `vi`. The
-UI is suspended while the editor runs and comes back when it exits. The entry
-keeps its position, pin and time. Details:
-
-- The variable is split on spaces, so `EDITOR="code --wait"` works. Quoting is not
-  supported: point it at a small script for anything fancier.
-- Only the newline your editor adds at the end is dropped. Saving an empty file,
-  or an unchanged one, or quitting the editor with an error, changes nothing.
-- The text goes through a file in a fresh private directory (mode 0700, file 0600),
-  which is deleted afterwards along with any swap or backup files the editor
-  left beside it. Clipboard text is often secret, so nothing is left in `/tmp`.
-- If the new text equals another entry and `allow_duplicates` is off, the other
-  one is removed and the survivor is pinned if either was.
-- One text entry at a time: with several selected, glyphs asks you to clear the
-  selection (`S`). Images can't be edited.
-
-### Modes (clipboard tab)
-
-Modelled on Helix: the same movement keys do different things depending on the
-mode, and the header shows which one you are in. Normal mode is what you start
-in.
-
-| Mode | Enter | What the arrows do | Leave |
-| --- | --- | --- | --- |
-| **Normal** | | move the cursor | |
-| **Select** | `v` | extend the selection from where you pressed `v` (moving back shrinks it) | `v` or `Esc`; the selection is kept |
-| **Move** | `m` | carry the highlighted entry, or the whole selection, up and down; `Home`/`End` send it to the top/bottom | `Enter` saves the order, `Esc` throws it away |
-
-In select mode the usual commands work on the selection (`Enter` copies, `p`
-pins, `x` deletes, `m` moves). A selection you had before pressing `v` is kept.
-
-Move mode edits a draft in memory and writes the history once, on `Enter`, so
-there is nothing to undo and a refresh cannot clobber it. If the listener
-records something meanwhile, the new entry is kept at the top when you save.
-Move mode needs an unfiltered list; in the pinned-only view an entry hops over
-the hidden ones, so the order you see is the order you get. A pinned entry
-that you copy again keeps its place instead of jumping to the top, so an order
-you arranged by hand lasts. (Unpinned entries still move to the top when copied
-again, unless `allow_duplicates` is on.)
+glyphs writes a fully commented `config.toml` on first run. Every option, key
+binding, colour and UI string is listed in [doc/Configuration.md](doc/Configuration.md).
 
 ## CLI
 
@@ -139,7 +48,141 @@ glyphs --keep                  # open the TUI and stay open after copying
 glyphs --version
 ```
 
-### Running the listener under systemd
+Example usage:
+```
+glyphs                      # open the TUI
+glyphs --tab emoji          # open on a given tab (clipboard | kaomoji | emoji | unicode | nerd | logs)
+glyphs listen               # record clipboard changes in the background
+```
+
+## Tabs
+
+| Tab | What it does |
+| --- | --- |
+| **Clipboard** | History list (opens first). Pin, multi-select, delete, fuzzy search, live updates. `Space` opens a full-pane preview. |
+| **Kaomoji** | Category list + grid. |
+| **Emoji** | Group list + grid, `t` cycles skin tone. Search box is focused when the tab opens. |
+| **Unicode** | Block list + grid. |
+| **Nerd** | Set list + grid. |
+| **Logs** | What the listener has been doing, and what is wrong with your config. Filter by level (`L`) or by words (`/`). |
+
+## Clipboard
+
+![Clipboard Tab](./misc/clipboard_tab.png)
+
+### Keys
+All rebindable (press `?` in the app).
+
+- Arrows or `hjkl` for movement
+- `Enter` copies,
+- `/` searches,
+- `Tab` / `Shift+Tab` switch tab.
+- Clipboard: `p` pin
+- `Ctrl+P` pinned-only,
+- `x` / `Backspace` delete (asks first for pinned)
+- `s` / `Shift+↑↓` multi-select
+- `Space` preview.
+- `v` select mode, `m` move mode (below).
+- `e` edit the entry in `$VISUAL` / `$EDITOR` (below).
+
+### Clipboard preview
+
+Closed by default. `Space` opens it over the whole pane, like clipse: `↑↓`
+scroll a line, `←→` a page (with a scroll percentage), `Enter` copies, `Space`
+or `Esc` closes. Images are drawn as a real bitmap in terminals that support
+sixel (foot, WezTerm, mlterm, ...). glyphs asks the terminal at startup, so no
+setup is needed. Elsewhere it falls back to a half-block approximation.
+
+Set `image_preview` to `sixel`, `basic` or `off` to force a mode. Default is `auto`.
+
+### Editing an entry
+
+`e` opens the highlighted text entry in `$VISUAL`, then `$EDITOR`, then `vi`. The
+UI is suspended while the editor runs and comes back when it exits. The entry
+keeps its position, pin and time. Details:
+
+- The variable is split on spaces, so `EDITOR="code --wait"` works. Quoting is not
+  supported: point it at a small script for anything fancier.
+- Only the newline your editor adds at the end is dropped. Saving an empty file,
+  or an unchanged one, or quitting the editor with an error, changes nothing.
+- The text goes through a file in a fresh private directory (mode 0700, file 0600),
+  which is deleted afterwards along with any swap or backup files the editor
+  left beside it. Clipboard text is often secret, so nothing is left in `/tmp`.
+- If the new text equals another entry and `allow_duplicates` is off, the other
+  one is removed and the survivor is pinned if either was.
+- One text entry at a time: with several selected, glyphs asks you to clear the
+  selection (`S`). Images can't be edited.
+
+### Modes
+
+The same movement keys do different things depending on the
+mode, and the header shows which one you are in. Normal mode is what you start
+in.
+
+| Mode | Enter | What the arrows do | Leave |
+| --- | --- | --- | --- |
+| **Normal** | | move the cursor | |
+| **Select** | `v` | extend the selection from where you pressed `v` (moving back shrinks it) | `v` or `Esc`; the selection is kept |
+| **Move** | `m` | carry the highlighted entry, or the whole selection, up and down; `Home`/`End` send it to the top/bottom | `Enter` saves the order, `Esc` throws it away |
+
+In select mode the usual commands work on the selection (`Enter` copies, `p`
+pins, `x` deletes, `m` moves). A selection you had before pressing `v` is kept.
+
+Move mode edits a draft in memory and writes the history once, on `Enter`, so
+there is nothing to undo and a refresh cannot clobber it. If the listener
+records something meanwhile, the new entry is kept at the top when you save.
+Move mode needs an unfiltered list; in the pinned-only view an entry hops over
+the hidden ones, so the order you see is the order you get. A pinned entry
+that you copy again keeps its place instead of jumping to the top, so an order
+you arranged by hand lasts. (Unpinned entries still move to the top when copied
+again, unless `allow_duplicates` is on.)
+
+## Symbols
+
+![Kaomoji Tab](./misc/kaomoji_tab.png)
+![Emoji Tab](./misc/emoji_tab.png)
+![Unicode Tab](./misc/unicode_tab.png)
+![Nerd Tab](./misc/nerd_tab.png)
+
+Browse kaomoji, emoji, unicode and nerd-font symbols, and press `/` to filter any of them.
+
+## Logs
+
+Logs Tab
+![Logs Tab](./misc/logs_tab.png)
+
+The listener writes its own log file (`log_file`, default `glyphs.log` in the
+config dir; it rotates at 1 MiB), whether you started it with `glyphs listen`
+or under systemd, so this tab works either way. Newest entries are on top and
+the tab updates live. A cursor on the first row follows new entries, like
+`tail -f`.
+
+- `L` cycles the level: all → error → warn → info. Only that level is listed.
+- `/` filters by words: every word must appear (case-insensitive) in the message
+  or the level, so `refused config` finds the line explaining why the listener did
+  not start, and `error` finds every error.
+- `Space` opens the whole message, wrapped; `Enter` copies it.
+- Problems with your `config.toml` (the error, or warnings such as an unknown
+  option) are listed first, and a `⚠ config` badge appears in the clipboard
+  header while there are any. Open this tab to read them.
+- If the listener refuses to start because of the config, it logs why here too.
+
+## Install
+
+### Pre-built Binaries
+
+Download the archive or binary matching your OS and architecture
+from the [Releases page](https://github.com/AtumnMoon/glyphs/releases),
+then move it to a directory in your `$PATH` (e.g., `/usr/local/bin` on Linux/macOS):
+
+### From Source
+
+If you have `go` installed:
+```
+go install github.com/AtumnMoon/glyphs/cmd/glyphs@latest
+```
+
+## Systemd Service
 
 Use the unit in [`contrib/glyphs-listener.service`](contrib/glyphs-listener.service):
 
@@ -157,159 +200,20 @@ control group, which leaves the TUI showing "listener off". Any other
 supervisor that tracks the process it starts (runit, s6, ...) needs
 `--foreground` for the same reason.
 
-## Configuration
-
-`~/.config/glyphs/config.toml` (or `$XDG_CONFIG_HOME`, or `$GLYPHS_CONFIG_DIR`)
-is created on first run, fully commented. Every option is optional: leave it
-out and the default applies. Option names are `snake_case`. (There is no
-migration from the old `config.json`: it is ignored, with a notice on the
-first run.)
-
-**An invalid config is never silently ignored.** The listener (and
-`glyphs add`) refuse to run and exit with status 78, because the defaults they
-would fall back to have no `excluded_patterns`, so they would record what you
-meant to keep out. The TUI still starts, on the defaults, with a `⚠ config`
-badge in the clipboard header and the details, with file, line and column, in
-the **Logs** tab. Unknown options are only warnings (a camelCase leftover gets
-a "did you mean" hint).
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `allow_duplicates` | `false` | `false`: re-copying moves the old entry to the top. A pinned entry keeps its place |
-| `delete_after` | `0` | Auto-delete unpinned entries older than N seconds; `0` = never |
-| `excluded_patterns` | `[]` | Regexes; matching text is never recorded, e.g. `["^sk-[A-Za-z0-9]+$"]` |
-| `max_history` | `100` | Max entries (pinned never count against it); `0` = unlimited |
-| `quit_after_copy` | `true` | Exit after picking an item |
-| `default_tab` | `"clipboard"` | Tab opened by default (`clipboard`, `kaomoji`, `emoji`, `logs`) |
-| `search_on_open` | `["emoji", "kaomoji"]` | Tabs whose search box starts focused |
-| `image_preview` | `"auto"` | `auto`, `sixel`, `basic` or `off` |
-| `simple_emoji` | `false` | Hide joined (ZWJ) emoji sequences; turn on if your terminal garbles them |
-| `emoji_columns` / `emoji_rows` | `16` / `16` | Emoji grid size. Drawing fewer glyphs per frame keeps first paint instant; `0` fills the window |
-| `max_entry_length` | `65` | Max characters of an entry shown in the list |
-| `enable_description` | `true` | Second line (time, size) per entry |
-| `enable_mouse` | `true` | Wheel scrolling, click tabs |
-| `log_file` | `"glyphs.log"` | Listener log; absolute, `~`, `$VAR`, or relative to the config dir |
-| `[keys]` | | Action → list of keys, e.g. `quit = ["q", "esc"]`; see below |
-| `[theme]` | green | Colours, see [Theme](#theme) |
-| `[ui]` | | Text, markers and small layout switches, see [UI text and markers](#ui-text-and-markers) |
-
-### Keys
-
-Keys are lists, so any key can be bound, including the comma (`quit = ["q", ","]`).
-An empty list is ignored. The actions and their defaults are listed (commented
-out) in the generated `config.toml`.
-
-### Theme
-
-Every colour is a quoted hex string (or ANSI number) under `[theme]`. Set only
-what you want to change. Optional keys left empty inherit the colour named
-below, so changing `selected` or `muted` alone keeps everything coherent.
-
-| Key | Meaning | Inherits |
-| --- | --- | --- |
-| `accent`, `accent_fg` | Active tab background / text, pane titles, divider | |
-| `inactive_tab_fg`, `inactive_tab_bg` | Inactive tabs | |
-| `text`, `muted` | Primary / secondary text | |
-| `selected`, `selected_bg` | Highlighted row text / background | |
-| `selected_desc` | The second line (time, size) under the highlighted row | `selected` |
-| `selected_pin`, `selected_multi` | Pin / select marker on the highlighted row | `selected` |
-| `selected_dim`, `selected_dim_bg` | Highlighted row while its pane is not focused | `text`, `selected_bg` |
-| `pin`, `multi` | Pin / multi-select marker on other rows | |
-| `status`, `error` | Status line, errors and delete prompt | |
-| `filter_prompt` | The search prompt | |
-| `filter_text`, `filter_cursor`, `filter_hint` | Typed query, caret, "(esc clears)" | `text`, `filter_prompt`, `muted` |
-| `placeholder` | Search placeholder and idle hint | `muted` |
-| `description` | Second line of other rows | `muted` |
-| `detail` | Detail line under the emoji/kaomoji grid | `muted` |
-| `divider`, `pane_title`, `pane_title_dim` | Pane divider and headings | `accent`, `accent`, `muted` |
-| `badge_listening`, `badge_paused`, `badge_off` | Listener badge | `status`, `pin`, `muted` |
-| `help_key`, `help_desc`, `help_separator` | Help bar (empty = built-in grey) | |
-
-Light highlight colour? Set `selected` (title) and `selected_desc` (second line)
-to something dark, e.g. `selected_desc = "#2D3B2B"`.
-
-### UI text and markers
-
-Everything under `[ui]` is optional. A key set to `""` is honoured where it makes
-sense (`pin_marker = ""` hides the marker, `search_placeholder = ""` shows none).
-Rows stay aligned whatever marker width you pick.
-
-| Key | Default |
-| --- | --- |
-| `pin_marker` / `select_marker` | `🖈` / `✓` |
-| `search_prompt` / `search_cursor` | `"❯ "` / `▏` |
-| `search_placeholder` | `type to search…` (search box focused, nothing typed) |
-| `search_idle` | `press '{key}' for filter` (`{key}` = your `filter` binding) |
-| `search_clear_hint` | `   (esc clears)` |
-| `[ui.tab_names]` | `clipboard = "Clipboard"`, `kaomoji = "Kaomoji"`, `emoji = "Emoji"` |
-| `tab_format` | `{n} {name}` (e.g. `"{name}"` to drop the numbers) |
-| `kaomoji_heading` / `emoji_heading` | `Categories` / `Groups` |
-| `history_title` / `preview_title` | `History` / `Preview` |
-| `pinned_only` / `selected_label` | ` · pinned only` / ` · {count} selected` |
-| `divider` | `" │ "` |
-| `badge_listening` / `badge_paused` / `badge_off` | `● listening` / `⏸ paused` / `○ listener off` |
-| `empty_history` / `empty_pinned` / `no_matches` | empty-state messages |
-| `window_title` | `Glyphs` |
-| `bold_selected` / `bold_active_tab` | `true` / `true` |
-
-Example:
-
-```toml
-search_on_open = ["emoji", "kaomoji"]
-
-[theme]
-selected = "#090C09"
-selected_bg = "#7A9B76"
-selected_desc = "#2D3B2B"
-placeholder = "#7A9B76"
-help_key = "#7A9B76"
-
-[ui]
-pin_marker = "🖈"
-search_idle = "/ to search"
-tab_format = "{name}"
-```
-
-The clipboard history (`clipboard_history.json`, `tmp_files/`) lives in the
-config directory and is handled by `internal/clipboard`, on top of
-`golang.design/x/clipboard`.
-
-## How clipboard persistence works
-
-History is stored in `clipboard_history.json` (plus `tmp_files/` for images)
-inside the config directory, via `internal/clipboard` and
-`golang.design/x/clipboard`; `extras.go` there adds dedupe, expiry, exclusion
-and scoped clearing without changing the base file.
-
-On Linux/X11 the clipboard only lives as long as the program that copied it.
-So every copy from glyphs (`Enter` in the TUI, `glyphs copy`) is handed to a tiny
-detached holder process (`glyphs hold`, internal) that owns the clipboard
-until something else is copied. macOS and Windows write directly.
-
-## Credits
-
-The clipboard-manager side of glyphs (history file format, listener, CLI and
-config design) is inspired by [clipse](https://github.com/savedra1/clipse) by
-M Savedra (MIT licensed). glyphs is an independent implementation built on
-Bubble Tea v2 and `golang.design/x/clipboard`, and adds the kaomoji and emoji
-pickers.
-
-## Install
-
-```
-go install github.com/AtumnMoon/glyphs@latest
-```
-
-## Systemd Service
-
-When starting the listener as a systemd service, use `/usr/bin/glyphs -listen-shell`.
-
 ## Development
 
 ```
 go build ./...
 go test ./...
 ```
+
+## Credits
+
+The clipboard-manager side of glyphs (history file format, listener, CLI and
+config design) is inspired by [clipse](https://github.com/savedra1/clipse) by
+M Savedra (MIT licensed). glyphs is an independent implementation built on
+Bubble Tea v2 and `golang.design/x/clipboard`, and adds the kaomoji, emoji,
+unicode, and nerd symbol pickers.
 
 ## License
 
