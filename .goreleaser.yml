@@ -47,6 +47,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - doc/Configuration.md
       - src: manpages/*
         dst: man/man1
         strip_parent: true
